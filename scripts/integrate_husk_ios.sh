@@ -80,6 +80,8 @@ if "import Metal\n" not in v:
 if "private let iQuestCompositorLayer = CAMetalLayer()" not in v:
     v = v.replace("    private let apk: String\n",
                   "    private let apk: String\n    private let iQuestCompositorLayer = CAMetalLayer()\n", 1)
+if "stats.isHidden = true" not in v:
+    v = v.replace('        stats.text = " "', '        stats.text = " "\\n        stats.isHidden = true', 1)
 
 metal_block = """        if let metal = layer as? CAMetalLayer {
             metal.pixelFormat = .bgra8Unorm
