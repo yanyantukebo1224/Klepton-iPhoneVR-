@@ -24,6 +24,8 @@ final class IOSXRTracking: NSObject, ObservableObject {
     private let session = ARSession()
     private let visionQueue = DispatchQueue(label: "iquest.vision.handpose", qos: .userInitiated)
     private var isRunning = false
+    nonisolated(unsafe) private var originTransform: simd_float4x4?
+    nonisolated(unsafe) private var detectedFloorY: Float?
 
     override init() {
         super.init()
@@ -38,7 +40,10 @@ final class IOSXRTracking: NSObject, ObservableObject {
         }
         let configuration = ARWorldTrackingConfiguration()
         configuration.worldAlignment = .gravity
+        configuration.planeDetection = [.horizontal]
         configuration.environmentTexturing = .none
+        originTransform = nil
+        detectedFloorY = nil
         session.run(configuration, options: [.resetTracking, .removeExistingAnchors])
         isRunning = true
         trackingState = "Starting ARKit world tracking"
@@ -51,10 +56,16 @@ final class IOSXRTracking: NSObject, ObservableObject {
         trackingState = "Paused"
     }
 
+    private func floorOffset() -> Float {
+        guard ki_get_tracking_origin() != 0 else { return 0 }
+        return detectedFloorY.map { -$0 } ?? 1.6
+    }
+
     private func publish(_ transform: simd_float4x4, state: ARCamera.TrackingState) {
-        let position = SIMD3<Float>(transform.columns.3.x,
+        var position = SIMD3<Float>(transform.columns.3.x,
                                     transform.columns.3.y,
                                     transform.columns.3.z)
+        position.y += floorOffset()
         let rotationMatrix = simd_float3x3(columns: (
             SIMD3<Float>(transform.columns.0.x, transform.columns.0.y, transform.columns.0.z),
             SIMD3<Float>(transform.columns.1.x, transform.columns.1.y, transform.columns.1.z),
@@ -97,7 +108,6 @@ final class IOSXRTracking: NSObject, ObservableObject {
             // sensing; the skeleton remains 2D until a real 3D source is added.
             let imageWidth = Float(CVPixelBufferGetWidth(pixelBuffer))
             let imageHeight = Float(CVPixelBufferGetHeight(pixelBuffer))
-            let intrinsics = camera.intrinsics
             let fx = intrinsics.columns.0.x
             let fy = intrinsics.columns.1.y
             let cx = intrinsics.columns.2.x
@@ -122,8 +132,8 @@ final class IOSXRTracking: NSObject, ObservableObject {
                 let transform = camera.transform
                 func worldPoint(_ point: VNRecognizedPoint) -> SIMD3<Float> {
                     let p = cameraPoint(point)
-                    let w = transform * SIMD4<Float>(p.x, p.y, p.z, 1)
-                    return SIMD3(w.x, w.y, w.z)
+                    let w = worldFromCamera * SIMD4<Float>(p.x, p.y, p.z, 1)
+                    return SIMD3(w.x, w.y + floorOffset, w.z)
                 }
                 let wristWorld = worldPoint(wrist)
                 let acrossRaw = worldPoint(index) - worldPoint(pinky)
@@ -152,13 +162,32 @@ final class IOSXRTracking: NSObject, ObservableObject {
 
 extension IOSXRTracking: ARSessionDelegate {
     nonisolated func session(_ session: ARSession, didUpdate frame: ARFrame) {
-        let transform = frame.camera.transform
+        let cameraTransform = frame.camera.transform
+        if originTransform == nil { originTransform = cameraTransform }
+        let relativeTransform = simd_inverse(originTransform!) * cameraTransform
         let state = frame.camera.trackingState
         let pixelBuffer = frame.capturedImage
+        let floor = detectedFloorY.map { -$0 } ?? 1.6
+        let intrinsics = frame.camera.intrinsics
         Task { @MainActor in
-            self.publish(transform, state: state)
+            self.publish(relativeTransform, state: state)
         }
-        detectHands(in: pixelBuffer, camera: frame.camera)
+        detectHands(in: pixelBuffer,
+                    worldFromCamera: relativeTransform,
+                    intrinsics: intrinsics,
+                    floorOffset: ki_get_tracking_origin() == 0 ? 0 : floor)
+    }
+
+    nonisolated func session(_ session: ARSession, didAdd anchors: [ARAnchor]) {
+        guard let originTransform else { return }
+        let inverseOrigin = simd_inverse(originTransform)
+        for anchor in anchors {
+            guard let plane = anchor as? ARPlaneAnchor,
+                  plane.alignment == .horizontal,
+                  plane.classification == .floor else { continue }
+            let floorInOrigin = inverseOrigin * plane.transform
+            detectedFloorY = floorInOrigin.columns.3.y
+        }
     }
 
     nonisolated func session(_ session: ARSession, didFailWithError error: Error) {
