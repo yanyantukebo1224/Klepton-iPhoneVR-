@@ -4,19 +4,7 @@ on:
   push:
     branches:
       - ios/husk-runtime-integration
-    paths:
-      - "Makefile"
-      - "runtime/**"
-      - "tools/**"
-      - "docs/IOS_HUSK_INTEGRATION.md"
-      - ".github/workflows/ios-runtime-integration.yml"
   pull_request:
-    paths:
-      - "Makefile"
-      - "runtime/**"
-      - "tools/**"
-      - "docs/IOS_HUSK_INTEGRATION.md"
-      - ".github/workflows/ios-runtime-integration.yml"
   workflow_dispatch:
 
 permissions:
