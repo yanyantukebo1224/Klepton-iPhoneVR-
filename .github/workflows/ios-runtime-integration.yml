@@ -11,24 +11,27 @@ permissions:
   contents: read
 
 jobs:
+  klepton-host-tests:
+    name: Existing Klepton host regression suite
+    runs-on: macos-15
+    steps:
+      - name: Checkout iQuest/Klepton
+        uses: actions/checkout@v4
+      - name: Run host regression suite
+        run: make check
+
   klepton-ios:
     name: Klepton C runtime -> iOS arm64
     runs-on: macos-15
     steps:
       - name: Checkout iQuest/Klepton
         uses: actions/checkout@v4
-
       - name: Show Apple toolchain
         run: |
           xcodebuild -version
           xcrun --sdk iphoneos --show-sdk-version
-
-      - name: Run existing host regression suite
-        run: make check
-
       - name: Build iOS runtime dylib
         run: make ios-runtime
-
       - name: Upload iOS runtime (not an IPA)
         uses: actions/upload-artifact@v4
         with:
