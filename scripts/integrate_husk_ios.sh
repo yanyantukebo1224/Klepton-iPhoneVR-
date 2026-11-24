@@ -66,6 +66,20 @@ b = bridge.read_text()
 if '#import "KleptonIOSBridge.h"' not in b:
     b += '\n// iQuest XR runtime bridge.\n#import "KleptonIOSBridge.h"\n'
     bridge.write_text(b)
+
+# Start ARKit only while a Unity guest is in the foreground.
+view = Path(sys.argv[1]).parent / "TLUnityView.swift"
+v = view.read_text()
+if "private var iQuestXRTracking: IOSXRTracking?" not in v:
+    v = v.replace("    private let apk: String\\n",
+                  "    private let apk: String\\n    private var iQuestXRTracking: IOSXRTracking?\\n", 1)
+if "iQuestXRTracking?.stop()" not in v:
+    v = v.replace("        } else {\\n            husk_unity_set_paused(true)",
+                  "        } else {\\n            iQuestXRTracking?.stop()\\n            husk_unity_set_paused(true)", 1)
+if "iQuestXRTracking = IOSXRTracking()" not in v:
+    v = v.replace('        if !started { HuskLog.log("tl", "native: launch refused") }',
+                  '        if !started {\\n            HuskLog.log("tl", "native: launch refused")\\n        } else if engine == .unity {\\n            let tracking = IOSXRTracking()\\n            iQuestXRTracking = tracking\\n            tracking.start()\\n        }', 1)
+view.write_text(v)
 PY
 
 cd "$HUSK_DIR/src/app"
