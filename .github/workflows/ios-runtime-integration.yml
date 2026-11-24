@@ -82,6 +82,7 @@ jobs:
               -std=gnu11 \
               -Wno-everything \
               -I "$SRC" \
+              -I "deps/Husk/src/translation-layer" \
               -fsyntax-only "$SRC/$file"
             echo "::endgroup::"
           done
