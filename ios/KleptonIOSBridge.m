@@ -65,3 +65,8 @@ void ki_publish_head_pose(float px, float py, float pz,
                           float qx, float qy, float qz, float qw) {
     kl_ovrp_set_head_pose(px, py, pz, qx, qy, qz, qw);
 }
+
+void ki_publish_hand_pose(int hand, float px, float py, float pz,
+                          float qx, float qy, float qz, float qw) {
+    kl_ovrp_set_hand_pose(hand, px, py, pz, qx, qy, qz, qw);
+}
