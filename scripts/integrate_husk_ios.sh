@@ -68,7 +68,7 @@ if '#import "KleptonIOSBridge.h"' not in b:
     bridge.write_text(b)
 
 # Start ARKit only while a Unity guest is in the foreground.
-view = Path(sys.argv[1]).parent / "TLUnityView.swift"
+view = Path(sys.argv[2]).parent / "TLUnityView.swift"
 v = view.read_text()
 if "private var iQuestXRTracking: IOSXRTracking?" not in v:
     v = v.replace("    private let apk: String\\n",
