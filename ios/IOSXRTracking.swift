@@ -23,11 +23,6 @@ final class IOSXRTracking: NSObject, ObservableObject {
 
     private let session = ARSession()
     private let visionQueue = DispatchQueue(label: "iquest.vision.handpose", qos: .userInitiated)
-    private let handRequest: VNDetectHumanHandPoseRequest = {
-        let request = VNDetectHumanHandPoseRequest()
-        request.maximumHandCount = 2
-        return request
-    }()
     private var isRunning = false
 
     override init() {
