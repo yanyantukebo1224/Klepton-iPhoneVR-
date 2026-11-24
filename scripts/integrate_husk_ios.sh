@@ -72,7 +72,7 @@ if '#import "KleptonIOSBridge.h"' not in b:
     b += '\n// iQuest XR runtime bridge.\n#import "KleptonIOSBridge.h"\n'
     bridge.write_text(b)
 
-# Start ARKit only while a Unity guest is in the foreground.
+# Start ARKit while a supported 3D guest is in the foreground.
 view = Path(sys.argv[2]).parent / "TLUnityView.swift"
 v = view.read_text()
 if "private var iQuestXRTracking: IOSXRTracking?" not in v:
@@ -81,6 +81,9 @@ if "private var iQuestXRTracking: IOSXRTracking?" not in v:
 if "iQuestXRTracking?.stop()" not in v:
     v = v.replace("        } else {\n            husk_unity_set_paused(true)",
                   "        } else {\n            iQuestXRTracking?.stop()\n            husk_unity_set_paused(true)", 1)
+if "iQuestXRTracking?.start()" not in v:
+    v = v.replace("        if window != nil {\n            husk_unity_set_paused(false)",
+                  "        if window != nil {\n            husk_unity_set_paused(false)\n            iQuestXRTracking?.start()", 1)
 if "iQuestXRTracking = IOSXRTracking()" not in v:
     v = v.replace('        if !started { HuskLog.log("tl", "native: launch refused") }',
                   '        if !started {\n            HuskLog.log("tl", "native: launch refused")\n        } else if engine == .unity || engine == .ue4 || engine == .nativeactivity {\n            let tracking = IOSXRTracking()\n            iQuestXRTracking = tracking\n            tracking.start()\n        }', 1)
