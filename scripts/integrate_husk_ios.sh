@@ -75,11 +75,11 @@ if '#import "KleptonIOSBridge.h"' not in b:
 # Start ARKit while a supported 3D guest is in the foreground.
 view = Path(sys.argv[2]).parent / "TLUnityView.swift"
 v = view.read_text()
-if "import Metal\\n" not in v:
-    v = v.replace("import QuartzCore\\n", "import QuartzCore\\nimport Metal\\n", 1)
+if "import Metal\n" not in v:
+    v = v.replace("import QuartzCore\n", "import QuartzCore\nimport Metal\n", 1)
 if "private let iQuestCompositorLayer = CAMetalLayer()" not in v:
-    v = v.replace("    private let apk: String\\n",
-                  "    private let apk: String\\n    private let iQuestCompositorLayer = CAMetalLayer()\\n", 1)
+    v = v.replace("    private let apk: String\n",
+                  "    private let apk: String\n    private let iQuestCompositorLayer = CAMetalLayer()\n", 1)
 
 metal_block = """        if let metal = layer as? CAMetalLayer {
             metal.pixelFormat = .bgra8Unorm
@@ -100,13 +100,13 @@ if "self.layer.addSublayer(iQuestCompositorLayer)" not in v:
 """, 1)
 if "iQuestCompositorLayer.drawableSize = CGSize(width: w, height: h)" not in v:
     v = v.replace("        if !(engine == .ue4 && launched) { (layer as? CAMetalLayer)?.drawableSize = CGSize(width: w, height: h) }",
-                  "        if !(engine == .ue4 && launched) { (layer as? CAMetalLayer)?.drawableSize = CGSize(width: w, height: h) }\\n        iQuestCompositorLayer.frame = bounds\\n        iQuestCompositorLayer.drawableSize = CGSize(width: w, height: h)", 1)
+                  "        if !(engine == .ue4 && launched) { (layer as? CAMetalLayer)?.drawableSize = CGSize(width: w, height: h) }\n        iQuestCompositorLayer.frame = bounds\n        iQuestCompositorLayer.drawableSize = CGSize(width: w, height: h)", 1)
 if "IOSVRCompositor.shared.stop()" not in v:
-    v = v.replace("        } else {\\n            iQuestXRTracking?.stop()",
-                  "        } else {\\n            IOSVRCompositor.shared.stop()\\n            iQuestCompositorLayer.isHidden = true\\n            iQuestXRTracking?.stop()", 1)
+    v = v.replace("        } else {\n            iQuestXRTracking?.stop()",
+                  "        } else {\n            IOSVRCompositor.shared.stop()\n            iQuestCompositorLayer.isHidden = true\n            iQuestXRTracking?.stop()", 1)
 if "IOSVRCompositor.shared.start(guestLayer:" not in v:
     v = v.replace("        let layerPtr = Unmanaged.passUnretained(layer).toOpaque()",
-                  "        let layerPtr = Unmanaged.passUnretained(layer).toOpaque()\\n        if engine == .unity || engine == .ue4 || engine == .nativeactivity {\\n            iQuestCompositorLayer.isHidden = false\\n            if let guest = layer as? CAMetalLayer { IOSVRCompositor.shared.start(guestLayer: guest, outputLayer: iQuestCompositorLayer) }\\n        }", 1)
+                  "        let layerPtr = Unmanaged.passUnretained(layer).toOpaque()\n        if engine == .unity || engine == .ue4 || engine == .nativeactivity {\n            iQuestCompositorLayer.isHidden = false\n            if let guest = layer as? CAMetalLayer { IOSVRCompositor.shared.start(guestLayer: guest, outputLayer: iQuestCompositorLayer) }\n        }", 1)
 view.write_text(v)
 if "private var iQuestXRTracking: IOSXRTracking?" not in v:
     v = v.replace("    private let apk: String\n",
@@ -128,15 +128,15 @@ view.write_text(v)
 bionic = project.parent.parent / "translation-layer-next" / "husk-tl-bionic.c"
 src = bionic.read_text()
 decls = (
-    "\\n/* iQuest synthetic Quest XR libraries (implemented by libklepton-ios). */\\n"
-    "extern int kl_ovrp_claims(const char *soname);\\n"
-    "extern void *kl_ovrp_dlopen(const char *soname);\\n"
-    "extern int kl_ovrp_is_handle(const void *handle);\\n"
-    "extern void *kl_ovrp_sym(const char *name);\\n"
-    "extern int kl_openxr_claims(const char *soname);\\n"
-    "extern void *kl_openxr_dlopen(const char *soname);\\n"
-    "extern int kl_openxr_is_handle(const void *handle);\\n"
-    "extern void *kl_openxr_sym(const char *name);\\n"
+    "\n/* iQuest synthetic Quest XR libraries (implemented by libklepton-ios). */\n"
+    "extern int kl_ovrp_claims(const char *soname);\n"
+    "extern void *kl_ovrp_dlopen(const char *soname);\n"
+    "extern int kl_ovrp_is_handle(const void *handle);\n"
+    "extern void *kl_ovrp_sym(const char *name);\n"
+    "extern int kl_openxr_claims(const char *soname);\n"
+    "extern void *kl_openxr_dlopen(const char *soname);\n"
+    "extern int kl_openxr_is_handle(const void *handle);\n"
+    "extern void *kl_openxr_sym(const char *name);\n"
 )
 if "kl_ovrp_claims" not in src:
     include_marker = '#include "husk-tl-ld.h"'
@@ -144,11 +144,11 @@ if "kl_ovrp_claims" not in src:
         raise SystemExit("Could not find Husk dynamic linker include marker")
     src = src.replace(include_marker, include_marker + decls, 1)
 
-dl_marker = "    base = base ? base + 1 : path;\\n"
+dl_marker = "    base = base ? base + 1 : path;\n"
 dl_hook = (
-    "    base = base ? base + 1 : path;\\n"
-    "    if (kl_ovrp_claims(base)) return kl_ovrp_dlopen(base);\\n"
-    "    if (kl_openxr_claims(base)) return kl_openxr_dlopen(base);\\n"
+    "    base = base ? base + 1 : path;\n"
+    "    if (kl_ovrp_claims(base)) return kl_ovrp_dlopen(base);\n"
+    "    if (kl_openxr_claims(base)) return kl_openxr_dlopen(base);\n"
 )
 if "if (kl_ovrp_claims(base))" not in src:
     if dl_marker not in src:
@@ -157,10 +157,10 @@ if "if (kl_ovrp_claims(base))" not in src:
 
 sym_marker = "    if (handle == (void *)-1L) {"
 sym_hook = (
-    "    if (kl_ovrp_is_handle(handle)) {\\n"
-    "        r = kl_ovrp_sym(name);\\n"
-    "    } else if (kl_openxr_is_handle(handle)) {\\n"
-    "        r = kl_openxr_sym(name);\\n"
+    "    if (kl_ovrp_is_handle(handle)) {\n"
+    "        r = kl_ovrp_sym(name);\n"
+    "    } else if (kl_openxr_is_handle(handle)) {\n"
+    "        r = kl_openxr_sym(name);\n"
     "    } else if (handle == (void *)-1L) {"
 )
 if "if (kl_ovrp_is_handle(handle))" not in src:
