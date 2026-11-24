@@ -63,7 +63,7 @@ search_block = (
 )
 if search_marker not in text:
     raise SystemExit("Could not find LIBRARY_SEARCH_PATHS in project.yml")
-if "IQuestXR" not in text.split(search_marker)[0]:
+if "$(SRCROOT)/IQuestXR" not in text:
     text = text.replace(search_marker, search_block + search_marker, 1)
 project.write_text(text)
 
