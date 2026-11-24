@@ -24,5 +24,7 @@ unsigned long ki_guest_frames(void);
 /// Publishes the latest ARKit world pose to Klepton's OVRPlugin compatibility layer.
 void ki_publish_head_pose(float px, float py, float pz,
                           float qx, float qy, float qz, float qw);
+void ki_publish_hand_pose(int hand, float px, float py, float pz,
+                          float qx, float qy, float qz, float qw);
 
 NS_ASSUME_NONNULL_END
