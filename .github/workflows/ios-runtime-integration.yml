@@ -77,3 +77,34 @@ jobs:
               -fsyntax-only "$SRC/$file"
             echo "::endgroup::"
           done
+
+  husk-full-app:
+    name: Integrated Husk + iQuest IPA
+    runs-on: macos-15
+    timeout-minutes: 360
+    steps:
+      - name: Checkout iQuest/Klepton
+        uses: actions/checkout@v4
+        with:
+          path: iquest
+      - name: Install build tools
+        run: |
+          brew install meson ninja pkg-config xcodegen qemu
+          rustup target add aarch64-apple-ios
+      - name: Assemble pinned Husk app with iQuest XR bridge
+        working-directory: iquest
+        run: |
+          chmod +x scripts/integrate_husk_ios.sh
+          HUSK_DIR="$GITHUB_WORKSPACE/deps/Husk" scripts/integrate_husk_ios.sh
+      - name: Build complete app and IPA
+        working-directory: deps/Husk
+        run: |
+          chmod +x scripts/ci_build.sh
+          ./scripts/ci_build.sh "$GITHUB_WORKSPACE/iquest/build/iQuest-Husk.ipa"
+      - name: Upload integrated IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: iquest-husk-ipa
+          path: iquest/build/iQuest-Husk.ipa
+          if-no-files-found: error
+          retention-days: 14
