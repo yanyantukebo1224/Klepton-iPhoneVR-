@@ -115,7 +115,7 @@ if "IOSVRCompositor.shared.stop()" not in v:
                   "        } else {\n            IOSVRCompositor.shared.stop()\n            iQuestCompositorLayer.isHidden = true\n            iQuestXRTracking?.stop()", 1)
 if "IOSVRCompositor.shared.start(guestLayer:" not in v:
     v = v.replace("        let layerPtr = Unmanaged.passUnretained(layer).toOpaque()",
-                  "        let layerPtr = Unmanaged.passUnretained(layer).toOpaque()\n        if engine == .unity || engine == .ue4 || engine == .nativeactivity {\n            iQuestCompositorLayer.isHidden = false\n            if let guest = layer as? CAMetalLayer { IOSVRCompositor.shared.start(guestLayer: guest, outputLayer: iQuestCompositorLayer) }\n        }", 1)
+                  "        let layerPtr = Unmanaged.passUnretained(layer).toOpaque()\n        if engine == .unity || engine == .ue4 || engine == .nativeactivity || engine == .godot || engine == .sdl || engine == .minecraft {\n            iQuestCompositorLayer.isHidden = false\n            if let guest = layer as? CAMetalLayer { IOSVRCompositor.shared.start(guestLayer: guest, outputLayer: iQuestCompositorLayer) }\n        }", 1)
 view.write_text(v)
 if "private var iQuestXRTracking: IOSXRTracking?" not in v:
     v = v.replace("    private let apk: String\n",
@@ -126,12 +126,12 @@ if "iQuestXRTracking?.stop()" not in v:
 if "iQuestXRTracking?.start()" not in v:
     v = v.replace("        if window != nil {\n            husk_unity_set_paused(false)",
                   "        if window != nil {\n            husk_unity_set_paused(false)\n            iQuestXRTracking?.start()", 1)
-if "if launched && (engine == .unity || engine == .ue4 || engine == .nativeactivity)" not in v:
+if "if launched && (engine == .unity || engine == .ue4 || engine == .nativeactivity || engine == .godot || engine == .sdl || engine == .minecraft)" not in v:
     v = v.replace("            iQuestXRTracking?.start()\n            statsTimer",
-                  "            iQuestXRTracking?.start()\n            if launched && (engine == .unity || engine == .ue4 || engine == .nativeactivity) {\n                iQuestCompositorLayer.isHidden = false\n                if let guest = layer as? CAMetalLayer { IOSVRCompositor.shared.start(guestLayer: guest, outputLayer: iQuestCompositorLayer) }\n            }\n            statsTimer", 1)
+                  "            iQuestXRTracking?.start()\n            if launched && (engine == .unity || engine == .ue4 || engine == .nativeactivity || engine == .godot || engine == .sdl || engine == .minecraft) {\n                iQuestCompositorLayer.isHidden = false\n                if let guest = layer as? CAMetalLayer { IOSVRCompositor.shared.start(guestLayer: guest, outputLayer: iQuestCompositorLayer) }\n            }\n            statsTimer", 1)
 if "iQuestXRTracking = IOSXRTracking()" not in v:
     v = v.replace('        if !started { HuskLog.log("tl", "native: launch refused") }',
-                  '        if !started {\n            HuskLog.log("tl", "native: launch refused")\n        } else if engine == .unity || engine == .ue4 || engine == .nativeactivity {\n            let tracking = IOSXRTracking()\n            iQuestXRTracking = tracking\n            tracking.start()\n        }', 1)
+                  '        if !started {\n            HuskLog.log("tl", "native: launch refused")\n        } else if engine == .unity || engine == .ue4 || engine == .nativeactivity || engine == .godot || engine == .sdl || engine == .minecraft {\n            let tracking = IOSXRTracking()\n            iQuestXRTracking = tracking\n            tracking.start()\n        }', 1)
 view.write_text(v)
 
 # Route Android's guest-side dlopen/dlsym through Klepton's synthetic XR
