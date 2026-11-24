@@ -94,8 +94,11 @@ jobs:
           path: iquest
       - name: Install build tools
         run: |
-          brew install meson ninja pkg-config xcodegen qemu
+          brew install meson ninja pkg-config xcodegen qemu cmake gn autoconf automake libtool
           rustup target add aarch64-apple-ios
+      - name: Validate integration script syntax
+        working-directory: iquest
+        run: bash -n scripts/integrate_husk_ios.sh
       - name: Assemble pinned Husk app with iQuest XR bridge
         working-directory: iquest
         run: |
