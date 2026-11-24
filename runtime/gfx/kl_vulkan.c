@@ -58,6 +58,8 @@ void *kl_vulkan_lookup(const char *n) { (void)n; return NULL; }
 int   kl_vulkan_available(void) { return 0; }
 void  kl_vulkan_stats(unsigned *p, unsigned *c) { if (p) *p = 0; if (c) *c = 0; }
 int   kl_vulkan_guest_active(void) { return 0; }
+int   kl_vulkan_display_luid(uint8_t out[8]) { (void)out; return 0; }
+void  kl_vulkan_capture_layers(void) { }
 unsigned long long kl_vulkan_eye_image(int s, int e, unsigned w, unsigned h, int srgb) {
     (void)s; (void)e; (void)w; (void)h; (void)srgb; return 0;
 }
