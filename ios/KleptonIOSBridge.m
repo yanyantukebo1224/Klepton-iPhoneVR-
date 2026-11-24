@@ -233,3 +233,7 @@ void ki_render_stereo_frame(CAMetalLayer *outputLayer) {
     [command presentDrawable:drawable];
     [command commit];
 }
+
+int ki_get_tracking_origin(void) {
+    return kl_ovrp_tracking_origin();
+}
