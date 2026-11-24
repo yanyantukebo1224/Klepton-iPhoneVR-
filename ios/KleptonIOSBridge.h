@@ -26,5 +26,7 @@ void ki_publish_head_pose(float px, float py, float pz,
                           float qx, float qy, float qz, float qw);
 void ki_publish_hand_pose(int hand, float px, float py, float pz,
                           float qx, float qy, float qz, float qw);
+void ki_install_metal_eye_provider(CAMetalLayer *guestLayer);
+void ki_render_stereo_frame(CAMetalLayer *outputLayer);
 
 NS_ASSUME_NONNULL_END
