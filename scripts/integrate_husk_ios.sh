@@ -85,6 +85,53 @@ if "iQuestXRTracking = IOSXRTracking()" not in v:
     v = v.replace('        if !started { HuskLog.log("tl", "native: launch refused") }',
                   '        if !started {\n            HuskLog.log("tl", "native: launch refused")\n        } else if engine == .unity {\n            let tracking = IOSXRTracking()\n            iQuestXRTracking = tracking\n            tracking.start()\n        }', 1)
 view.write_text(v)
+
+# Route Android's guest-side dlopen/dlsym through Klepton's synthetic XR
+# libraries. This is the crucial seam: neither Android's real OVRPlugin nor
+# the Android OpenXR loader can be loaded as an iOS-native library.
+bionic = project.parent.parent / "translation-layer-next" / "husk-tl-bionic.c"
+src = bionic.read_text()
+decls = (
+    "\\n/* iQuest synthetic Quest XR libraries (implemented by libklepton-ios). */\\n"
+    "extern int kl_ovrp_claims(const char *soname);\\n"
+    "extern void *kl_ovrp_dlopen(const char *soname);\\n"
+    "extern int kl_ovrp_is_handle(const void *handle);\\n"
+    "extern void *kl_ovrp_sym(const char *name);\\n"
+    "extern int kl_openxr_claims(const char *soname);\\n"
+    "extern void *kl_openxr_dlopen(const char *soname);\\n"
+    "extern int kl_openxr_is_handle(const void *handle);\\n"
+    "extern void *kl_openxr_sym(const char *name);\\n"
+)
+if "kl_ovrp_claims" not in src:
+    include_marker = '#include "husk-tl-ld.h"'
+    if include_marker not in src:
+        raise SystemExit("Could not find Husk dynamic linker include marker")
+    src = src.replace(include_marker, include_marker + decls, 1)
+
+dl_marker = "    base = base ? base + 1 : path;\\n"
+dl_hook = (
+    "    base = base ? base + 1 : path;\\n"
+    "    if (kl_ovrp_claims(base)) return kl_ovrp_dlopen(base);\\n"
+    "    if (kl_openxr_claims(base)) return kl_openxr_dlopen(base);\\n"
+)
+if "if (kl_ovrp_claims(base))" not in src:
+    if dl_marker not in src:
+        raise SystemExit("Could not find Husk dlopen soname normalization")
+    src = src.replace(dl_marker, dl_hook, 1)
+
+sym_marker = "    if (handle == (void *)-1L) {"
+sym_hook = (
+    "    if (kl_ovrp_is_handle(handle)) {\\n"
+    "        r = kl_ovrp_sym(name);\\n"
+    "    } else if (kl_openxr_is_handle(handle)) {\\n"
+    "        r = kl_openxr_sym(name);\\n"
+    "    } else if (handle == (void *)-1L) {"
+)
+if "if (kl_ovrp_is_handle(handle))" not in src:
+    if sym_marker not in src:
+        raise SystemExit("Could not find Husk dlsym dispatch")
+    src = src.replace(sym_marker, sym_hook, 1)
+bionic.write_text(src)
 PY
 
 cd "$HUSK_DIR/src/app"
