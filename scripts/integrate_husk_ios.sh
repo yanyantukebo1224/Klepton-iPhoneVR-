@@ -83,7 +83,7 @@ if "iQuestXRTracking?.stop()" not in v:
                   "        } else {\n            iQuestXRTracking?.stop()\n            husk_unity_set_paused(true)", 1)
 if "iQuestXRTracking = IOSXRTracking()" not in v:
     v = v.replace('        if !started { HuskLog.log("tl", "native: launch refused") }',
-                  '        if !started {\n            HuskLog.log("tl", "native: launch refused")\n        } else if engine == .unity {\n            let tracking = IOSXRTracking()\n            iQuestXRTracking = tracking\n            tracking.start()\n        }', 1)
+                  '        if !started {\n            HuskLog.log("tl", "native: launch refused")\n        } else if engine == .unity || engine == .ue4 || engine == .nativeactivity {\n            let tracking = IOSXRTracking()\n            iQuestXRTracking = tracking\n            tracking.start()\n        }', 1)
 view.write_text(v)
 
 # Route Android's guest-side dlopen/dlsym through Klepton's synthetic XR
