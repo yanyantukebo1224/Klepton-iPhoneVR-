@@ -32,6 +32,13 @@ project = Path(sys.argv[1])
 bridge = Path(sys.argv[2])
 text = project.read_text()
 
+# ARKit/Vision use the rear camera for head and hand tracking.
+import plistlib
+info_plist = bridge.parent / "Info.plist"
+plist = plistlib.loads(info_plist.read_bytes())
+plist["NSCameraUsageDescription"] = "iQuest uses the camera for ARKit head tracking and hand tracking while playing VR games."
+info_plist.write_bytes(plistlib.dumps(plist, fmt=plistlib.FMT_XML, sort_keys=False))
+
 # The linked Klepton runtime is built for iOS 17; this project targets the
 # requested iPhone 16e class of devices, not legacy iOS 15 hardware.
 text = text.replace('    iOS: "15.5"', '    iOS: "17.0"', 1)
