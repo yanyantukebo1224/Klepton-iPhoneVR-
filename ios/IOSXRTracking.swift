@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 import ARKit
+import Combine
 import Foundation
 import simd
 import Vision
@@ -59,11 +60,12 @@ final class IOSXRTracking: NSObject, ObservableObject {
         let position = SIMD3<Float>(transform.columns.3.x,
                                     transform.columns.3.y,
                                     transform.columns.3.z)
-        let rotation = simd_quatf(
+        let rotationMatrix = simd_float3x3(columns: (
             SIMD3<Float>(transform.columns.0.x, transform.columns.0.y, transform.columns.0.z),
             SIMD3<Float>(transform.columns.1.x, transform.columns.1.y, transform.columns.1.z),
             SIMD3<Float>(transform.columns.2.x, transform.columns.2.y, transform.columns.2.z)
-        )
+        ))
+        let rotation = simd_quatf(rotationMatrix)
         ki_publish_head_pose(position.x, position.y, position.z,
                              rotation.imag.x, rotation.imag.y, rotation.imag.z, rotation.real)
         Task { @MainActor in
@@ -78,13 +80,15 @@ final class IOSXRTracking: NSObject, ObservableObject {
         }
     }
 
-    private func detectHands(in pixelBuffer: CVPixelBuffer) {
+    nonisolated private func detectHands(in pixelBuffer: CVPixelBuffer) {
+        let request = VNDetectHumanHandPoseRequest()
+        request.maximumHandCount = 2
         let handler = VNImageRequestHandler(cvPixelBuffer: pixelBuffer,
                                             orientation: .right,
                                             options: [:])
         do {
-            try handler.perform([handRequest])
-            let hands = (handRequest.results ?? []).map { observation in
+            try handler.perform([request])
+            let hands = (request.results ?? []).map { observation in
                 ((try? observation.recognizedPoints(.all)) ?? [:]).map { joint, point in
                     HandLandmark(id: joint.rawValue,
                                  x: Float(point.location.x),
