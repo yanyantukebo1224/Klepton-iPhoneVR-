@@ -178,14 +178,19 @@ int main(void) {
     nap(0.2);
     (void)kl_ovrp_haptics_pull(0, &amp, &secs);        // clear the hold
     {
-        uint8_t ramp[64];
-        for (int i = 0; i < 64; i++) ramp[i] = (uint8_t)(i * 4);   // 0 -> 252
-        hbuffer b = { ramp, 64 };                                  // 200 ms
+        // 256 samples make this 800 ms long. The earlier 64-sample / 200 ms
+        // clip let a busy CI runner oversleep the first 100 ms nap past the
+        // entire envelope, so the first pull correctly saw the peak and the
+        // second correctly saw silence. Give the two observation windows more
+        // scheduling margin while keeping the same monotonic envelope test.
+        uint8_t ramp[256];
+        for (int i = 0; i < 256; i++) ramp[i] = (uint8_t)i;        // 0 -> 255
+        hbuffer b = { ramp, 256 };                                 // 800 ms
         set_haptics(LTOUCH, b);
-        nap(0.10);
+        nap(0.25);
         float first = 0;
         CHECK(kl_ovrp_haptics_pull(0, &first, &secs), "no level from the ramp's first half");
-        nap(0.12);
+        nap(0.30);
         float second = 0;
         CHECK(kl_ovrp_haptics_pull(0, &second, &secs), "no level from the ramp's second half");
         printf("  ramp: %.2f then %.2f\n", (double)first, (double)second);
