@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - ios/husk-runtime-integration
+      - ios/quest-integration
   pull_request:
   workflow_dispatch:
 
