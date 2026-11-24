@@ -17,7 +17,9 @@ final class IOSVRCompositor: NSObject {
     func start(guestLayer: CAMetalLayer, outputLayer: CAMetalLayer) {
         self.guestLayer = guestLayer
         self.outputLayer = outputLayer
-        guard !installed else {
+        ki_install_metal_eye_provider(guestLayer)
+        outputLayer.device = guestLayer.device
+        if installed {
             if displayLink == nil {
                 let link = CADisplayLink(target: self, selector: #selector(drawFrame(_:)))
                 link.add(to: .main, forMode: .common)
@@ -25,7 +27,6 @@ final class IOSVRCompositor: NSObject {
             }
             return
         }
-        ki_install_metal_eye_provider(guestLayer)
         installed = true
         let link = CADisplayLink(target: self, selector: #selector(drawFrame(_:)))
         link.add(to: .main, forMode: .common)
