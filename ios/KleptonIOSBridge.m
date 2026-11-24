@@ -81,6 +81,8 @@ static NSMutableArray<id<MTLTexture>> *g_iquest_eye_lifetime;
 static id<MTLDevice> g_iquest_device;
 static id<MTLRenderPipelineState> g_iquest_pipeline;
 static id<MTLSamplerState> g_iquest_sampler;
+static id<MTLCommandQueue> g_iquest_queue;
+static id<MTLSharedEvent> g_iquest_fence;
 static CAMetalLayer *g_iquest_guest_layer;
 
 static NSString *iquest_eye_key(int eye, int stage) {
@@ -147,6 +149,11 @@ void ki_install_metal_eye_provider(CAMetalLayer *guestLayer) {
     g_iquest_guest_layer = guestLayer;
     if (!guestLayer.device) guestLayer.device = MTLCreateSystemDefaultDevice();
     g_iquest_device = guestLayer.device;
+    if (!g_iquest_queue) g_iquest_queue = [g_iquest_device newCommandQueue];
+    if (!g_iquest_fence && [g_iquest_device respondsToSelector:@selector(newSharedEvent)]) {
+        g_iquest_fence = [g_iquest_device newSharedEvent];
+        if (g_iquest_fence) kl_glfb_set_gpu_fence((__bridge void *)g_iquest_fence);
+    }
     kl_glfb_set_mtl_provider(iquest_eye_texture_provider,
                              (__bridge void *)guestLayer);
 }
@@ -183,8 +190,12 @@ void ki_render_stereo_frame(CAMetalLayer *outputLayer) {
     if (!outputLayer || !iquest_build_pipeline(outputLayer)) return;
     id<CAMetalDrawable> drawable = [outputLayer nextDrawable];
     if (!drawable) return;
-    id<MTLCommandQueue> queue = [g_iquest_device newCommandQueue];
-    id<MTLCommandBuffer> command = [queue commandBuffer];
+    if (!g_iquest_queue) g_iquest_queue = [g_iquest_device newCommandQueue];
+    id<MTLCommandBuffer> command = [g_iquest_queue commandBuffer];
+    if (g_iquest_fence && kl_glfb_has_gpu_fence()) {
+        uint64_t fenceValue = kl_glfb_gpu_fence_value();
+        if (fenceValue > 0) [command encodeWaitForEvent:g_iquest_fence value:fenceValue];
+    }
     MTLRenderPassDescriptor *pass = [MTLRenderPassDescriptor renderPassDescriptor];
     pass.colorAttachments[0].texture = drawable.texture;
     pass.colorAttachments[0].loadAction = MTLLoadActionClear;
