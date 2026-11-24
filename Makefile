@@ -962,6 +962,36 @@ xros-sim: build/xrsim/libklepton.dylib
 	@printf '  xrsim      '; xcrun vtool -show-build $< | grep -E 'platform' | tr -d '\n'
 	@printf '  %s\n' "$$(ls -l $< | awk '{print $$5" bytes"}')"
 
+
+# iOS device runtime. This compiles the same C runtime sources as visionOS
+# against the iPhoneOS SDK; it deliberately does not create an app or IPA.
+IOS_MIN_VERSION ?= 17.0
+IOS_SDK := $(shell xcrun --sdk iphoneos --show-sdk-path)
+IOS_CFLAGS := -g -O1 -Wall -Wextra -Wno-unused-parameter -arch arm64 $(MVK_INC) $(RUNTIME_INC)
+
+.PHONY: ios-runtime
+ios-runtime: build/ios/libklepton-ios.dylib
+	@printf '  ios        '; xcrun vtool -show-build $< | grep -E 'platform' | tr -d '\n'
+	@printf '  %s\n' "$$(ls -l $< | awk '{print $$5" bytes"}')"
+	@echo "  runtime only: this is not an IPA or a complete iOS app"
+
+build/ios/libklepton-ios.a: $(RUNTIME_SHIP) $(RUNTIME_ALL_HDRS)
+	@mkdir -p build/ios
+	@rm -f build/ios/*.o $@
+	@set -e; for s in $(RUNTIME_SHIP); do \
+	  o=build/ios/$$(basename $$s | sed 's/\.[cSm]$$/.o/'); \
+	  $(CC) $(IOS_CFLAGS) -target arm64-apple-ios$(IOS_MIN_VERSION) -isysroot $(IOS_SDK) \
+	    -c $$s -o $$o; \
+	done
+	@ar rcs $@ build/ios/*.o
+
+build/ios/libklepton-ios.dylib: build/ios/libklepton-ios.a
+	@$(CC) -target arm64-apple-ios$(IOS_MIN_VERSION) -isysroot $(IOS_SDK) -arch arm64 \
+	   -dynamiclib -o $@ -Wl,-all_load $< -lz -framework AudioToolbox \
+	   -framework VideoToolbox -framework CoreMedia -framework CoreVideo -framework IOSurface \
+	   -framework CoreFoundation -framework AVFoundation -framework Foundation \
+	   -install_name @rpath/libklepton-ios.dylib
+
 # The two archives as one XCFramework, so the app target links the right slice
 # without a per-platform search path. Xcode resolves the slice from the
 # destination; getting that wrong otherwise fails as a confusing arch mismatch.
