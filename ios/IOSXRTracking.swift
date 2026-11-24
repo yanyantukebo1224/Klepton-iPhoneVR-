@@ -102,11 +102,6 @@ final class IOSXRTracking: NSObject, ObservableObject {
             let fy = intrinsics.columns.1.y
             let cx = intrinsics.columns.2.x
             let cy = intrinsics.columns.2.y
-            let cameraRotation = simd_quatf(simd_float3x3(columns: (
-                SIMD3<Float>(camera.transform.columns.0.x, camera.transform.columns.0.y, camera.transform.columns.0.z),
-                SIMD3<Float>(camera.transform.columns.1.x, camera.transform.columns.1.y, camera.transform.columns.1.z),
-                SIMD3<Float>(camera.transform.columns.2.x, camera.transform.columns.2.y, camera.transform.columns.2.z)
-            )))
             for observation in observations {
                 guard let points = try? observation.recognizedPoints(.all),
                       let wrist = points[.wrist], wrist.confidence > 0.25,
@@ -131,12 +126,18 @@ final class IOSXRTracking: NSObject, ObservableObject {
                     return SIMD3(w.x, w.y, w.z)
                 }
                 let wristWorld = worldPoint(wrist)
-                let across = simd_normalize(worldPoint(index) - worldPoint(pinky))
-                let forwardRaw = simd_normalize(worldPoint(middle) - wristWorld)
-                let normal = simd_normalize(simd_cross(across, forwardRaw))
+                let acrossRaw = worldPoint(index) - worldPoint(pinky)
+                let forwardRaw = worldPoint(middle) - wristWorld
+                guard simd_length(acrossRaw) > 0.0001,
+                      simd_length(forwardRaw) > 0.0001 else { continue }
+                let across = simd_normalize(acrossRaw)
+                let forwardHint = simd_normalize(forwardRaw)
+                let normalRaw = simd_cross(across, forwardHint)
+                guard simd_length(normalRaw) > 0.0001 else { continue }
+                let normal = simd_normalize(normalRaw)
                 let forward = simd_normalize(simd_cross(normal, across))
-                let handRotation = simd_quatf(simd_float3x3(columns: (across, forward, normal)))
-                let worldRotation = cameraRotation * handRotation
+                // The basis was built from world-space landmarks already.
+                let worldRotation = simd_quatf(simd_float3x3(columns: (across, forward, normal)))
                 let hand = observation.chirality == .left ? 0 : 1
                 ki_publish_hand_pose(Int32(hand), wristWorld.x, wristWorld.y, wristWorld.z,
                                      worldRotation.imag.x, worldRotation.imag.y,
