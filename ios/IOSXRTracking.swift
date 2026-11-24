@@ -7,17 +7,17 @@ import Vision
 
 /// ARKit provides 6DoF head tracking. Vision provides 2D hand landmarks;
 /// a monocular palm-width estimate supplies an approximate wrist depth.
-@MainActor
-final class IOSXRTracking: NSObject, ObservableObject {
-    struct HandLandmark: Identifiable {
+struct IOSHandLandmark: Identifiable, Sendable {
         let id: String
         let x: Float
         let y: Float
         let confidence: Float
-    }
+}
 
+@MainActor
+final class IOSXRTracking: NSObject, ObservableObject {
     @Published private(set) var trackingState = "Not started"
-    @Published private(set) var handLandmarks: [[HandLandmark]] = []
+    @Published private(set) var handLandmarks: [[IOSHandLandmark]] = []
     @Published private(set) var headPosition = SIMD3<Float>(repeating: 0)
 
     private let session = ARSession()
@@ -99,7 +99,7 @@ final class IOSXRTracking: NSObject, ObservableObject {
             let observations = request.results ?? []
             let hands = observations.map { observation in
                 ((try? observation.recognizedPoints(.all)) ?? [:]).map { joint, point in
-                    HandLandmark(id: joint.rawValue,
+                    IOSHandLandmark(id: joint.rawValue,
                                  x: Float(point.location.x),
                                  y: Float(point.location.y),
                                  confidence: point.confidence)
