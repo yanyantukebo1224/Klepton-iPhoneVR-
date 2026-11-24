@@ -36,6 +36,7 @@ text = project.read_text()
 import plistlib
 info_plist = bridge.parent / "Info.plist"
 plist = plistlib.loads(info_plist.read_bytes())
+plist["CFBundleDisplayName"] = "iQuest"
 plist["NSCameraUsageDescription"] = "iQuest uses the camera for ARKit head tracking and hand tracking while playing VR games."
 info_plist.write_bytes(plistlib.dumps(plist, fmt=plistlib.FMT_XML, sort_keys=False))
 
