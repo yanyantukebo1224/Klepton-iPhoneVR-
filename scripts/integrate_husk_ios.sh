@@ -117,6 +117,9 @@ if "iQuestXRTracking?.stop()" not in v:
 if "iQuestXRTracking?.start()" not in v:
     v = v.replace("        if window != nil {\n            husk_unity_set_paused(false)",
                   "        if window != nil {\n            husk_unity_set_paused(false)\n            iQuestXRTracking?.start()", 1)
+if "if launched && (engine == .unity || engine == .ue4 || engine == .nativeactivity)" not in v:
+    v = v.replace("            iQuestXRTracking?.start()\n            statsTimer",
+                  "            iQuestXRTracking?.start()\n            if launched && (engine == .unity || engine == .ue4 || engine == .nativeactivity) {\n                iQuestCompositorLayer.isHidden = false\n                if let guest = layer as? CAMetalLayer { IOSVRCompositor.shared.start(guestLayer: guest, outputLayer: iQuestCompositorLayer) }\n            }\n            statsTimer", 1)
 if "iQuestXRTracking = IOSXRTracking()" not in v:
     v = v.replace('        if !started { HuskLog.log("tl", "native: launch refused") }',
                   '        if !started {\n            HuskLog.log("tl", "native: launch refused")\n        } else if engine == .unity || engine == .ue4 || engine == .nativeactivity {\n            let tracking = IOSXRTracking()\n            iQuestXRTracking = tracking\n            tracking.start()\n        }', 1)
