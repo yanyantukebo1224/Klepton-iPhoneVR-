@@ -32,6 +32,11 @@ project = Path(sys.argv[1])
 bridge = Path(sys.argv[2])
 text = project.read_text()
 
+# The linked Klepton runtime is built for iOS 17; this project targets the
+# requested iPhone 16e class of devices, not legacy iOS 15 hardware.
+text = text.replace('    iOS: "15.5"', '    iOS: "17.0"', 1)
+text = text.replace('    HUSK_BUNDLE_IDENTIFIER: com.husk.app', '    HUSK_BUNDLE_IDENTIFIER: com.yanyantukebo1224.iquest', 1)
+
 source_marker = "      - path: Husk\n"
 if source_marker not in text:
     raise SystemExit("Could not find the Husk app source entry in project.yml")
