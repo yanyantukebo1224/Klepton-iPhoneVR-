@@ -20,8 +20,8 @@ make -C "$ROOT" ios-runtime
 
 mkdir -p "$HUSK_DIR/build/ios-arm64/lib" "$HUSK_DIR/src/app/IQuestXR"
 cp "$ROOT/build/ios/libklepton-ios.dylib" "$HUSK_DIR/build/ios-arm64/lib/"
-cp "$ROOT/ios/KleptonIOSBridge.h" "$ROOT/ios/KleptonIOSBridge.m" "$ROOT/ios/IOSXRTracking.swift" "$HUSK_DIR/src/app/IQuestXR/"
-cp "$ROOT/runtime/xr/kl_ovrp.h" "$HUSK_DIR/src/app/IQuestXR/"
+cp "$ROOT/ios/KleptonIOSBridge.h" "$ROOT/ios/KleptonIOSBridge.m" "$ROOT/ios/IOSXRTracking.swift" "$ROOT/ios/IOSVRCompositor.swift" "$ROOT/ios/IQuestStereo.metal" "$HUSK_DIR/src/app/IQuestXR/"
+cp "$ROOT/runtime/xr/kl_ovrp.h" "$ROOT/runtime/gfx/kl_glfb.h" "$HUSK_DIR/src/app/IQuestXR/"
 cp "$HUSK_DIR/src/translation-layer-next/husk-tl-unity.h" "$HUSK_DIR/src/app/IQuestXR/"
 
 python3 - "$HUSK_DIR/src/app/project.yml" "$HUSK_DIR/src/app/Husk/HuskBridge.h" <<'PY'
@@ -75,6 +75,39 @@ if '#import "KleptonIOSBridge.h"' not in b:
 # Start ARKit while a supported 3D guest is in the foreground.
 view = Path(sys.argv[2]).parent / "TLUnityView.swift"
 v = view.read_text()
+if "import Metal\\n" not in v:
+    v = v.replace("import QuartzCore\\n", "import QuartzCore\\nimport Metal\\n", 1)
+if "private let iQuestCompositorLayer = CAMetalLayer()" not in v:
+    v = v.replace("    private let apk: String\\n",
+                  "    private let apk: String\\n    private let iQuestCompositorLayer = CAMetalLayer()\\n", 1)
+
+metal_block = """        if let metal = layer as? CAMetalLayer {
+            metal.pixelFormat = .bgra8Unorm
+            metal.framebufferOnly = true
+            metal.contentsScale = scale
+            metal.isOpaque = true
+        }
+"""
+if "self.layer.addSublayer(iQuestCompositorLayer)" not in v:
+    v = v.replace(metal_block, metal_block + """        iQuestCompositorLayer.device = (layer as? CAMetalLayer)?.device ?? MTLCreateSystemDefaultDevice()
+        iQuestCompositorLayer.pixelFormat = .bgra8Unorm
+        iQuestCompositorLayer.framebufferOnly = true
+        iQuestCompositorLayer.contentsScale = scale
+        iQuestCompositorLayer.isOpaque = true
+        iQuestCompositorLayer.zPosition = 1000
+        iQuestCompositorLayer.isHidden = true
+        self.layer.addSublayer(iQuestCompositorLayer)
+""", 1)
+if "iQuestCompositorLayer.drawableSize = CGSize(width: w, height: h)" not in v:
+    v = v.replace("        if !(engine == .ue4 && launched) { (layer as? CAMetalLayer)?.drawableSize = CGSize(width: w, height: h) }",
+                  "        if !(engine == .ue4 && launched) { (layer as? CAMetalLayer)?.drawableSize = CGSize(width: w, height: h) }\\n        iQuestCompositorLayer.frame = bounds\\n        iQuestCompositorLayer.drawableSize = CGSize(width: w, height: h)", 1)
+if "IOSVRCompositor.shared.stop()" not in v:
+    v = v.replace("        } else {\\n            iQuestXRTracking?.stop()",
+                  "        } else {\\n            IOSVRCompositor.shared.stop()\\n            iQuestCompositorLayer.isHidden = true\\n            iQuestXRTracking?.stop()", 1)
+if "IOSVRCompositor.shared.start(guestLayer:" not in v:
+    v = v.replace("        let layerPtr = Unmanaged.passUnretained(layer).toOpaque()",
+                  "        let layerPtr = Unmanaged.passUnretained(layer).toOpaque()\\n        if engine == .unity || engine == .ue4 || engine == .nativeactivity {\\n            iQuestCompositorLayer.isHidden = false\\n            if let guest = layer as? CAMetalLayer { IOSVRCompositor.shared.start(guestLayer: guest, outputLayer: iQuestCompositorLayer) }\\n        }", 1)
+view.write_text(v)
 if "private var iQuestXRTracking: IOSXRTracking?" not in v:
     v = v.replace("    private let apk: String\n",
                   "    private let apk: String\n    private var iQuestXRTracking: IOSXRTracking?\n", 1)
