@@ -35,3 +35,20 @@ jobs:
       - name: Build for generic iPhone device
         working-directory: ios
         run: xcodebuild -scheme PopinVRTracking -destination 'generic/platform=iOS' CODE_SIGNING_ALLOWED=NO build
+
+  ios-app:
+    name: Build PopinVR iOS app
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install XcodeGen
+        run: brew install xcodegen
+      - name: Download verified MediaPipe model
+        working-directory: ios
+        run: ./Scripts/download_hand_model.sh
+      - name: Generate Xcode project
+        working-directory: ios
+        run: xcodegen generate --spec project.yml
+      - name: Build iOS app
+        working-directory: ios
+        run: xcodebuild -project PopinVR.xcodeproj -scheme PopinVR -destination 'generic/platform=iOS' CODE_SIGNING_ALLOWED=NO build
