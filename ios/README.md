@@ -49,7 +49,17 @@ as a binary to this source repository.
 
 ## Build gates
 
-From the repository root:
+Build the first iPhone preview on a Mac with Xcode and XcodeGen:
+
+```sh
+cd ios
+brew install xcodegen
+bash build_app.sh
+```
+
+This produces an unsigned IPA at `ios/build/PopinVR-unsigned.ipa`; it must be signed with your own iOS signing workflow before installation. The preview currently displays a side-by-side stereo test cube and reports ARKit/MediaPipe tracking status.
+
+From the repository root, the guest runtime gates are:
 
 ```sh
 make ios-device
