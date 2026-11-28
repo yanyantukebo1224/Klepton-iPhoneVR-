@@ -85,6 +85,7 @@ final class PopinVRStereoRenderer: NSObject, MTKViewDelegate {
         descriptor.vertexDescriptor = vertexDescriptor
         descriptor.colorAttachments[0].pixelFormat = view.colorPixelFormat
         descriptor.colorAttachments[0].isBlendingEnabled = false
+        descriptor.depthAttachmentPixelFormat = .depth32Float
         do {
             self.pipeline = try device.makeRenderPipelineState(descriptor: descriptor)
         } catch {
