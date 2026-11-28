@@ -1,7 +1,8 @@
 name: PopinVR iOS validation
 
 concurrency:
-  group: popinvr-ios-${{ github.ref }}
+  # Push and pull_request runs for the same commit must not cancel each other.
+  group: popinvr-ios-${{ github.event_name }}-${{ github.ref }}
   cancel-in-progress: true
 
 on:
@@ -17,8 +18,8 @@ on:
       - ".github/workflows/popinvr-ios.yml"
 
 jobs:
-  ios-runtime:
-    name: Compile Klepton runtime for iPhoneOS with Vulkan headers
+  moltenvk:
+    name: Build MoltenVK for iOS once
     runs-on: macos-15
     steps:
       - uses: actions/checkout@v4
@@ -28,16 +29,43 @@ jobs:
           xcrun --sdk iphoneos --show-sdk-version
       - name: Build and stage MoltenVK
         run: bash build_moltenvk_ios.sh
+      - name: Upload MoltenVK framework and Vulkan headers
+        uses: actions/upload-artifact@v4
+        with:
+          name: popinvr-moltenvk-ios
+          path: |
+            vendor-moltenvk/out/include
+            ios/Vendor/MoltenVK.framework
+          if-no-files-found: error
+          retention-days: 2
+
+  ios-runtime:
+    name: Compile Klepton runtime for iPhoneOS with Vulkan headers
+    runs-on: macos-15
+    needs: moltenvk
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download MoltenVK build products
+        uses: actions/download-artifact@v4
+        with:
+          name: popinvr-moltenvk-ios
+          path: .
       - name: Compile and link iOS runtime
         run: make ios-device
 
   ios-app:
     name: Build PopinVR app, icon and embedded MoltenVK
     runs-on: macos-15
+    needs: moltenvk
     steps:
       - uses: actions/checkout@v4
       - name: Install XcodeGen
         run: brew install xcodegen
+      - name: Download MoltenVK build products
+        uses: actions/download-artifact@v4
+        with:
+          name: popinvr-moltenvk-ios
+          path: .
       - name: Build and package unsigned iOS app
         working-directory: ios
         run: bash build_app.sh
