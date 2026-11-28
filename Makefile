@@ -892,7 +892,7 @@ build/ios/libklepton.a: $(RUNTIME_SHIP) $(RUNTIME_ALL_HDRS)
 	@mkdir -p build/ios
 	@rm -f $@
 	@for s in $(RUNTIME_SHIP); do \
-	  o=build/ios/$(basename $s | sed 's/\.[cSm]$/.o/'); \
+	  o=build/ios/$$(basename $$s | sed 's/\.[cSm]$$/.o/'); \
 	  $(CC) $(IOS_CFLAGS) -target arm64-apple-ios17.0 -isysroot $(IOS_SDK) \
 	    -c $s -o $o || exit 1; done
 	@ar rcs $@ build/ios/*.o
@@ -906,8 +906,8 @@ build/ios/libklepton.dylib: build/ios/libklepton.a
 	   -install_name @rpath/libklepton.dylib
 
 ios-device: build/ios/libklepton.dylib
-	@printf '  ios        '; xcrun vtool -show-build $< | grep -E 'platform' | tr -d '\\n'
-	@printf '  %s\\n' "$(ls -l $< | awk '{print $5" bytes"}')"
+	@printf '  ios        '; xcrun vtool -show-build $< | grep -E 'platform' | tr -d '\n'
+	@printf '  %s\n' "$$(ls -l $< | awk '{print $$5" bytes"}')"
 
 
 .PHONY: xros xros-device xros-sim swiftcheck
@@ -987,11 +987,11 @@ build/xrsim/libklepton.dylib: build/xrsim/libklepton.a
 	   -install_name @rpath/libklepton.dylib
 
 xros-device: build/xros/libklepton.dylib
-	@printf '  xros       '; xcrun vtool -show-build $< | grep -E 'platform' | tr -d '\n'
+	@printf '  ios        '; xcrun vtool -show-build $< | grep -E 'platform' | tr -d '\n'
 	@printf '  %s\n' "$$(ls -l $< | awk '{print $$5" bytes"}')"
 
 xros-sim: build/xrsim/libklepton.dylib
-	@printf '  xrsim      '; xcrun vtool -show-build $< | grep -E 'platform' | tr -d '\n'
+	@printf '  ios        '; xcrun vtool -show-build $< | grep -E 'platform' | tr -d '\n'
 	@printf '  %s\n' "$$(ls -l $< | awk '{print $$5" bytes"}')"
 
 # The two archives as one XCFramework, so the app target links the right slice
