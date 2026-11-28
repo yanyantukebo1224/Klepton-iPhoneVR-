@@ -3,7 +3,7 @@ set -euo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
 cd "$HERE"
 
-./Scripts/download_hand_model.sh
+bash ./Scripts/download_hand_model.sh
 xcodegen generate --spec project.yml
 xcodebuild \
   -project PopinVR.xcodeproj \
