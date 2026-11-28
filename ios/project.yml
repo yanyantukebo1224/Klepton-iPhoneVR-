@@ -34,5 +34,3 @@ targets:
         GENERATE_INFOPLIST_FILE: NO
         SUPPORTS_MACCATALYST: NO
         ENABLE_PREVIEWS: YES
-    scheme:
-      testTargets: []
