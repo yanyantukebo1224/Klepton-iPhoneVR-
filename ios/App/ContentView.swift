@@ -1,6 +1,9 @@
 import SwiftUI
 import PopinVRTracking
 
+@_silgen_name("kl_vulkan_available")
+private func popinVRVulkanAvailable() -> Int32
+
 @MainActor
 final class PopinVRSessionModel: ObservableObject {
     @Published var headPose: PopinVRHeadPose?
@@ -70,6 +73,7 @@ struct ContentView: View {
     @StateObject private var model = PopinVRSessionModel()
     @State private var showViewer = false
     @State private var showSettings = false
+    @State private var vulkanProbeStatus = "未チェック"
 
     var body: some View {
         NavigationStack {
@@ -296,7 +300,7 @@ struct ContentView: View {
                 moduleCard("ARKit", subtitle: "6DoF Head Pose", icon: "arkit", active: model.isRunning)
                 moduleCard("MediaPipe", subtitle: "21-point Hands", icon: "hand.raised.fingers.spread.fill", active: model.isRunning)
                 moduleCard("Metal", subtitle: "Stereo Renderer", icon: "cube.transparent", active: true)
-                moduleCard("MoltenVK", subtitle: "Embedded · lazy init", icon: "cpu", active: true)
+                moduleCard("MoltenVK", subtitle: vulkanProbeStatus == "接続済み" ? "Vulkan loaded" : "Embedded · lazy init", icon: "cpu", active: vulkanProbeStatus == "接続済み")
             }
         }
     }
@@ -328,6 +332,16 @@ struct ContentView: View {
             .padding(.top, 3)
     }
 
+    private func probeMoltenVK() {
+        vulkanProbeStatus = "確認中..."
+        DispatchQueue.global(qos: .userInitiated).async {
+            let loaded = popinVRVulkanAvailable() != 0
+            DispatchQueue.main.async {
+                vulkanProbeStatus = loaded ? "接続済み" : "ロード失敗"
+            }
+        }
+    }
+
     private var settingsSheet: some View {
         NavigationStack {
             List {
@@ -338,7 +352,12 @@ struct ContentView: View {
                 }
                 Section("Graphics") {
                     LabeledContent("Compositor", value: "Metal / SBS")
-                    LabeledContent("Vulkan backend", value: "MoltenVK embedded · lazy load")
+                    LabeledContent("Vulkan backend", value: vulkanProbeStatus)
+                    Button {
+                        probeMoltenVK()
+                    } label: {
+                        Label("MoltenVK 接続テスト", systemImage: "bolt.horizontal.circle")
+                    }
                 }
                 Section {
                     Text("カメラは「トラッキングを開始」を押したときだけ使用します。映像はアプリ内で処理されます。")
