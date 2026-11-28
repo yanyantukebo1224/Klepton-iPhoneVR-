@@ -20,7 +20,7 @@ if [[ ! -f "$FRAMEWORK/MoltenVK" ]]; then
 fi
 [[ -f "$FRAMEWORK/MoltenVK" ]] || { echo "MoltenVK iOS framework was not produced: $FRAMEWORK" >&2; exit 1; }
 
-mkdir -p "$OUT/include" "$ROOT/ios/Vendor"
+mkdir -p "$OUT/include" "$ROOT/ios/Vendor" "$ROOT/ios/App/ThirdPartyLicenses"
 if [[ -d External/Vulkan-Headers/include/vulkan ]]; then
   cp -R External/Vulkan-Headers/include/. "$OUT/include/"
 elif [[ -d External/Vulkan-Headers/include ]]; then
@@ -33,5 +33,17 @@ fi
 
 rm -rf "$ROOT/ios/Vendor/MoltenVK.framework"
 cp -R "$FRAMEWORK" "$ROOT/ios/Vendor/MoltenVK.framework"
+
+# Keep the notices for MoltenVK and the bundled upstream dependencies with the app.
+cp "$SRC/LICENSE" "$ROOT/ios/App/ThirdPartyLicenses/MoltenVK-Apache-2.0.txt"
+for dep in SPIRV-Cross SPIRV-Tools cereal Vulkan-Headers; do
+  for license in LICENSE LICENSE.md LICENSE.txt; do
+    if [[ -f "$SRC/External/$dep/$license" ]]; then
+      cp "$SRC/External/$dep/$license" "$ROOT/ios/App/ThirdPartyLicenses/$dep-$license"
+      break
+    fi
+  done
+done
+
 echo "MoltenVK staged: $ROOT/ios/Vendor/MoltenVK.framework"
 echo "Vulkan headers staged: $OUT/include"
