@@ -1,0 +1,37 @@
+name: PopinVR iOS validation
+
+on:
+  push:
+    branches:
+      - ios/popinvr-tracking-foundation
+  pull_request:
+    paths:
+      - "ios/**"
+      - "runtime/**"
+      - "Makefile"
+      - ".github/workflows/popinvr-ios.yml"
+
+jobs:
+  ios-runtime:
+    name: Compile Klepton runtime for iPhoneOS
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Show Apple toolchain
+        run: |
+          xcodebuild -version
+          xcrun --sdk iphoneos --show-sdk-version
+      - name: Compile and link iOS runtime
+        run: make ios-device
+
+  ios-tracking:
+    name: Build MediaPipe tracking package
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Resolve MediaPipe Swift package
+        working-directory: ios
+        run: xcodebuild -resolvePackageDependencies -scheme PopinVRTracking
+      - name: Build for generic iPhone device
+        working-directory: ios
+        run: xcodebuild -scheme PopinVRTracking -destination 'generic/platform=iOS' CODE_SIGNING_ALLOWED=NO build
