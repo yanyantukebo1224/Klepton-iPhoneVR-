@@ -1,52 +1,26 @@
 import ARKit
+import CoreImage
+import CoreVideo
 import Foundation
-import ImageIO
-import Vision
+import MediaPipeTasksVision
+import UIKit
 
-/// A 2D hand landmark returned by Vision.
-///
-/// Coordinates are normalized to the camera image and use Vision's
-/// lower-left origin. They are not world-space or metric 3D coordinates.
-public struct PopinVRHandLandmark {
-    public let joint: String
-    public let x: Float
-    public let y: Float
-    public let confidence: Float
-
-    public init(joint: String, x: Float, y: Float, confidence: Float) {
-        self.joint = joint
-        self.x = x
-        self.y = y
-        self.confidence = confidence
-    }
+private struct PopinVRPoseSample {
+    let timestamp: TimeInterval
+    let cameraTransform: simd_float4x4
+    let trackingState: String
 }
 
-/// A hand detected in the current camera frame.
-public struct PopinVRTrackedHand {
-    /// "left", "right", or "unknown" from Vision's chirality estimate.
-    public let side: String
-    public let landmarks: [PopinVRHandLandmark]
-
-    public init(side: String, landmarks: [PopinVRHandLandmark]) {
-        self.side = side
-        self.landmarks = landmarks
-    }
-}
-
-/// One synchronized sample from ARKit and Vision.
+/// One synchronized sample from ARKit and MediaPipe.
 public struct PopinVRTrackingFrame {
     public let timestamp: TimeInterval
-    /// ARKit camera pose in the current AR session's world coordinate space.
+    /// ARKit camera pose in the session world space; headset eye-center calibration comes later.
     public let cameraTransform: simd_float4x4
     public let trackingState: String
-    public let hands: [PopinVRTrackedHand]
+    /// At most two hands, each with 21 joints in fixed MediaPipe order.
+    public let hands: [PopinVRHandSkeleton]
 
-    public init(
-        timestamp: TimeInterval,
-        cameraTransform: simd_float4x4,
-        trackingState: String,
-        hands: [PopinVRTrackedHand]
-    ) {
+    public init(timestamp: TimeInterval, cameraTransform: simd_float4x4, trackingState: String, hands: [PopinVRHandSkeleton]) {
         self.timestamp = timestamp
         self.cameraTransform = cameraTransform
         self.trackingState = trackingState
@@ -54,122 +28,207 @@ public struct PopinVRTrackingFrame {
     }
 }
 
-/// iOS tracking input for PopinVR.
-///
-/// ARKit supplies the device pose. Vision supplies 2D hand landmarks from the
-/// rear camera image. This deliberately does not claim to provide the same
-/// metric 3D hand skeleton as visionOS HandTrackingProvider; depth recovery
-/// and Quest/OpenXR joint mapping belong in a later adapter.
-public final class PopinVRTracking: NSObject, ARSessionDelegate {
+/// Converts ARKit camera buffers to BGRA, the pixel format required by MediaPipe Tasks Vision.
+/// A CVPixelBufferPool reuses destination buffers to avoid per-frame allocation.
+private final class PopinVRBGRAConverter {
+    private let context = CIContext()
+    private var pool: CVPixelBufferPool?
+    private var poolWidth = 0
+    private var poolHeight = 0
+
+    func convert(_ source: CVPixelBuffer) throws -> CVPixelBuffer {
+        if CVPixelBufferGetPixelFormatType(source) == kCVPixelFormatType_32BGRA { return source }
+        let width = CVPixelBufferGetWidth(source)
+        let height = CVPixelBufferGetHeight(source)
+        if pool == nil || width != poolWidth || height != poolHeight {
+            var newPool: CVPixelBufferPool?
+            let attributes: [String: Any] = [
+                kCVPixelBufferPixelFormatTypeKey as String: Int(kCVPixelFormatType_32BGRA),
+                kCVPixelBufferWidthKey as String: width,
+                kCVPixelBufferHeightKey as String: height,
+                kCVPixelBufferIOSurfacePropertiesKey as String: [:]
+            ]
+            let status = CVPixelBufferPoolCreate(kCFAllocatorDefault, nil, attributes as CFDictionary, &newPool)
+            guard status == kCVReturnSuccess, let newPool else {
+                throw PopinVRTrackingError.pixelBufferConversionFailed(status)
+            }
+            pool = newPool
+            poolWidth = width
+            poolHeight = height
+        }
+        var destination: CVPixelBuffer?
+        let status = CVPixelBufferPoolCreatePixelBuffer(kCFAllocatorDefault, pool!, &destination)
+        guard status == kCVReturnSuccess, let destination else {
+            throw PopinVRTrackingError.pixelBufferConversionFailed(status)
+        }
+        let image = CIImage(cvPixelBuffer: source)
+        context.render(image, to: destination, bounds: CGRect(x: 0, y: 0, width: width, height: height), colorSpace: CGColorSpaceCreateDeviceRGB())
+        return destination
+    }
+}
+
+/// iPhone tracking provider: ARKit 6DoF camera pose + MediaPipe 21-joint hand tracking.
+/// MediaPipe z is wrist-relative; worldLandmarks are hand-local meters, not camera distance.
+/// Frames are submitted asynchronously and dropped while inference is busy to bound latency.
+public final class PopinVRTracking: NSObject, ARSessionDelegate, HandLandmarkerLiveStreamDelegate {
     public var onFrame: ((PopinVRTrackingFrame) -> Void)?
     public var onError: ((Error) -> Void)?
 
     private let session = ARSession()
-    private let visionQueue = DispatchQueue(
-        label: "dev.popinvr.tracking.vision",
-        qos: .userInitiated
-    )
-    private let handRequest = VNDetectHumanHandPoseRequest()
-    private let imageOrientation: CGImagePropertyOrientation
+    private let modelPath: String
+    private let imageOrientation: UIImage.Orientation
+    private let captureQueue = DispatchQueue(label: "dev.popinvr.tracking.arkit", qos: .userInteractive)
+    private let inferenceQueue = DispatchQueue(label: "dev.popinvr.tracking.mediapipe", qos: .userInteractive)
+    private let converter = PopinVRBGRAConverter()
+    private let stateLock = NSLock()
+    private var landmarker: HandLandmarker?
+    private var poseByTimestamp: [Int: PopinVRPoseSample] = [:]
+    private var inferenceInFlight = false
+    private var lastSubmittedTimestamp = 0
 
-    public init(imageOrientation: CGImagePropertyOrientation = .up) {
+    /// modelPath must point to Google's hand_landmarker.task bundle.
+    /// imageOrientation defaults to sensor-native orientation; configure it for the chosen camera/display rotation.
+    public init(modelPath: String, imageOrientation: UIImage.Orientation = .up) {
+        self.modelPath = modelPath
         self.imageOrientation = imageOrientation
         super.init()
-        handRequest.maximumHandCount = 2
     }
 
-    /// Starts world tracking and camera-based hand landmark detection.
-    ///
-    /// The containing app must include NSCameraUsageDescription in its
-    /// Info.plist. Call this only while the app is in the foreground.
     public func start() throws {
-        guard ARWorldTrackingConfiguration.isSupported else {
-            throw PopinVRTrackingError.worldTrackingUnavailable
+        guard ARWorldTrackingConfiguration.isSupported else { throw PopinVRTrackingError.worldTrackingUnavailable }
+        guard FileManager.default.fileExists(atPath: modelPath) else { throw PopinVRTrackingError.modelFileNotFound(modelPath) }
+
+        let options = HandLandmarkerOptions()
+        options.baseOptions.modelAssetPath = modelPath
+        options.runningMode = .liveStream
+        options.numHands = 2
+        options.minHandDetectionConfidence = 0.5
+        options.minHandPresenceConfidence = 0.5
+        options.minTrackingConfidence = 0.5
+        options.handLandmarkerLiveStreamDelegate = self
+        options.baseOptions.delegate = .GPU
+        do {
+            landmarker = try HandLandmarker(options: options)
+        } catch {
+            let cpuOptions = HandLandmarkerOptions()
+            cpuOptions.baseOptions.modelAssetPath = modelPath
+            cpuOptions.runningMode = .liveStream
+            cpuOptions.numHands = 2
+            cpuOptions.minHandDetectionConfidence = 0.5
+            cpuOptions.minHandPresenceConfidence = 0.5
+            cpuOptions.minTrackingConfidence = 0.5
+            cpuOptions.handLandmarkerLiveStreamDelegate = self
+            cpuOptions.baseOptions.delegate = .CPU
+            landmarker = try HandLandmarker(options: cpuOptions)
         }
 
         let configuration = ARWorldTrackingConfiguration()
+        configuration.worldAlignment = .gravity
         session.delegate = self
-        session.delegateQueue = visionQueue
+        session.delegateQueue = captureQueue
         session.run(configuration, options: [.resetTracking, .removeExistingAnchors])
     }
 
     public func stop() {
         session.pause()
+        stateLock.lock()
+        inferenceInFlight = false
+        poseByTimestamp.removeAll(keepingCapacity: true)
+        stateLock.unlock()
+        landmarker = nil
     }
 
     public func session(_ session: ARSession, didUpdate frame: ARFrame) {
-        let hands: [PopinVRTrackedHand]
-        do {
-            hands = try detectHands(in: frame.capturedImage)
-        } catch {
-            DispatchQueue.main.async { [weak self] in
-                self?.onError?(error)
+        let timestamp = max(Int(frame.timestamp * 1_000), lastSubmittedTimestamp + 1)
+        lastSubmittedTimestamp = timestamp
+        stateLock.lock()
+        guard !inferenceInFlight else { stateLock.unlock(); return }
+        inferenceInFlight = true
+        poseByTimestamp[timestamp] = PopinVRPoseSample(timestamp: TimeInterval(timestamp) / 1_000, cameraTransform: frame.camera.transform, trackingState: Self.describe(frame.camera.trackingState))
+        if poseByTimestamp.count > 8, let oldest = poseByTimestamp.keys.min() { poseByTimestamp.removeValue(forKey: oldest) }
+        stateLock.unlock()
+
+        let cameraBuffer = frame.capturedImage
+        inferenceQueue.async { [weak self] in
+            guard let self, let landmarker = self.landmarker else {
+                self?.finishInference(timestamp: timestamp)
+                return
             }
-            return
-        }
-
-        let sample = PopinVRTrackingFrame(
-            timestamp: frame.timestamp,
-            cameraTransform: frame.camera.transform,
-            trackingState: describe(frame.camera.trackingState),
-            hands: hands
-        )
-
-        DispatchQueue.main.async { [weak self] in
-            self?.onFrame?(sample)
+            do {
+                let bgraBuffer = try self.converter.convert(cameraBuffer)
+                let image = try MPImage(pixelBuffer: bgraBuffer, orientation: self.imageOrientation)
+                try landmarker.detectAsync(image: image, timestampInMilliseconds: timestamp)
+            } catch {
+                self.finishInference(timestamp: timestamp)
+                DispatchQueue.main.async { [weak self] in self?.onError?(error) }
+            }
         }
     }
 
     public func session(_ session: ARSession, didFailWithError error: Error) {
-        DispatchQueue.main.async { [weak self] in
-            self?.onError?(error)
-        }
+        DispatchQueue.main.async { [weak self] in self?.onError?(error) }
     }
 
-    private func detectHands(in pixelBuffer: CVPixelBuffer) throws -> [PopinVRTrackedHand] {
-        let handler = VNImageRequestHandler(
-            cvPixelBuffer: pixelBuffer,
-            orientation: imageOrientation,
-            options: [:]
-        )
-        try handler.perform([handRequest])
-
-        return try (handRequest.results ?? []).map { observation in
-            let recognized = try observation.recognizedPoints(.all)
-            let landmarks = recognized.map { joint, point in
-                PopinVRHandLandmark(
-                    joint: String(describing: joint),
-                    x: Float(point.location.x),
-                    y: Float(point.location.y),
-                    confidence: point.confidence
-                )
-            }
-
-            let side: String
-            switch observation.chirality {
-            case .left: side = "left"
-            case .right: side = "right"
-            @unknown default: side = "unknown"
-            }
-
-            return PopinVRTrackedHand(side: side, landmarks: landmarks)
+    public func handLandmarker(_ handLandmarker: HandLandmarker, didFinishDetection result: HandLandmarkerResult?, timestampInMilliseconds: Int, error: Error?) {
+        stateLock.lock()
+        let pose = poseByTimestamp.removeValue(forKey: timestampInMilliseconds)
+        inferenceInFlight = false
+        stateLock.unlock()
+        if let error {
+            DispatchQueue.main.async { [weak self] in self?.onError?(error) }
+            return
         }
+        guard let pose else { return }
+        let hands = (result?.landmarks ?? []).enumerated().compactMap { index, points in
+            Self.makeHand(points: points, worldPoints: result?.worldLandmarks[safe: index], handedness: result?.handedness[safe: index])
+        }
+        let sample = PopinVRTrackingFrame(timestamp: pose.timestamp, cameraTransform: pose.cameraTransform, trackingState: pose.trackingState, hands: hands)
+        DispatchQueue.main.async { [weak self] in self?.onFrame?(sample) }
     }
 
-    private func describe(_ state: ARCamera.TrackingState) -> String {
+    private func finishInference(timestamp: Int) {
+        stateLock.lock()
+        poseByTimestamp.removeValue(forKey: timestamp)
+        inferenceInFlight = false
+        stateLock.unlock()
+    }
+
+    private static func makeHand(points: [NormalizedLandmark], worldPoints: [Landmark]?, handedness: [ResultCategory]?) -> PopinVRHandSkeleton? {
+        guard points.count == PopinVRHandJoint.allCases.count else { return nil }
+        let category = handedness?.first
+        let side: PopinVRHandSide
+        switch category?.categoryName?.lowercased() {
+        case "left": side = .left
+        case "right": side = .right
+        default: side = .unknown
+        }
+        let handConfidence = category?.score ?? 0
+        let joints = PopinVRHandJoint.allCases.map { joint in
+            let point = points[joint.rawValue]
+            let world = worldPoints.flatMap { $0.count > joint.rawValue ? $0[joint.rawValue] : nil }
+            let confidence = point.visibility?.floatValue ?? point.presence?.floatValue ?? handConfidence
+            let worldPosition = world.map { SIMD3<Float>(x: $0.x, y: $0.y, z: $0.z) }
+            return PopinVRHandJointSample(joint: joint, x: point.x, y: point.y, z: point.z, confidence: confidence, worldPosition: worldPosition)
+        }
+        return PopinVRHandSkeleton(side: side, handednessConfidence: handConfidence, joints: joints)
+    }
+
+    private static func describe(_ state: ARCamera.TrackingState) -> String {
         switch state {
-        case .normal:
-            return "normal"
-        case .notAvailable:
-            return "notAvailable"
-        case .limited(let reason):
-            return "limited:\(reason)"
-        @unknown default:
-            return "unknown"
+        case .normal: return "normal"
+        case .notAvailable: return "notAvailable"
+        case .limited(let reason): return "limited:\(reason)"
+        @unknown default: return "unknown"
         }
     }
 }
 
+private extension Collection {
+    subscript(safe index: Index) -> Element? { indices.contains(index) ? self[index] : nil }
+}
+
 public enum PopinVRTrackingError: Error {
     case worldTrackingUnavailable
+    case modelFileNotFound(String)
+    case pixelBufferConversionFailed(CVReturn)
 }
