@@ -78,7 +78,6 @@ struct ContentView: View {
             .padding(12)
         }
         .statusBarHidden(true)
-        .persistentSystemOverlays(.hidden)
         .onAppear { model.start() }
         .onDisappear { model.stop() }
     }
