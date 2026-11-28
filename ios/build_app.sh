@@ -4,7 +4,10 @@ HERE="$(cd "$(dirname "$0")" && pwd)"
 ROOT="$(cd "$HERE/.." && pwd)"
 cd "$HERE"
 
-# Stage a real iOS MoltenVK framework and Vulkan headers before generating Xcode.
+# CI supplies the staged framework as an artifact; local builds can create it here.
+if [[ ! -f "$HERE/Vendor/MoltenVK.framework/MoltenVK" || ! -f "$ROOT/vendor-moltenvk/out/include/vulkan/vulkan.h" ]]; then
+  bash "$ROOT/build_moltenvk_ios.sh"
+fi
 make -C "$ROOT" ios-device
 python3 ./Scripts/generate_app_icon.py
 
