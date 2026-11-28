@@ -296,7 +296,7 @@ struct ContentView: View {
                 moduleCard("ARKit", subtitle: "6DoF Head Pose", icon: "arkit", active: model.isRunning)
                 moduleCard("MediaPipe", subtitle: "21-point Hands", icon: "hand.raised.fingers.spread.fill", active: model.isRunning)
                 moduleCard("Metal", subtitle: "Stereo Renderer", icon: "cube.transparent", active: true)
-                moduleCard("MoltenVK", subtitle: "Vulkan on Metal", icon: "cpu", active: false)
+                moduleCard("MoltenVK", subtitle: "Embedded · lazy init", icon: "cpu", active: true)
             }
         }
     }
@@ -338,7 +338,7 @@ struct ContentView: View {
                 }
                 Section("Graphics") {
                     LabeledContent("Compositor", value: "Metal / SBS")
-                    LabeledContent("Vulkan backend", value: "MoltenVK integration in progress")
+                    LabeledContent("Vulkan backend", value: "MoltenVK embedded · lazy load")
                 }
                 Section {
                     Text("カメラは「トラッキングを開始」を押したときだけ使用します。映像はアプリ内で処理されます。")
