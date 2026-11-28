@@ -6,6 +6,7 @@ final class PopinVRSessionModel: ObservableObject {
     @Published var trackingState = "waiting"
     @Published var handCount = 0
     @Published var jointCount = 0
+    @Published var trackingFrame: PopinVRTrackingFrame?
     @Published var errorMessage: String?
 
     private var tracker: PopinVRTracking?
@@ -29,6 +30,7 @@ final class PopinVRSessionModel: ObservableObject {
         newTracker.onFrame = { [weak self] frame in
             self?.handCount = frame.hands.count
             self?.jointCount = frame.hands.reduce(0) { $0 + $1.joints.count }
+            self?.trackingFrame = frame
         }
         newTracker.onError = { [weak self] error in
             self?.errorMessage = error.localizedDescription
@@ -55,6 +57,9 @@ struct ContentView: View {
     var body: some View {
         ZStack(alignment: .topLeading) {
             PopinVRStereoView(headPose: model.headPose)
+                .ignoresSafeArea()
+
+            PopinVRHandOverlay(frame: model.trackingFrame)
                 .ignoresSafeArea()
 
             VStack(alignment: .leading, spacing: 5) {
