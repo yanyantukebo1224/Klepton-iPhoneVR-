@@ -13,11 +13,12 @@ on:
       - "ios/**"
       - "runtime/**"
       - "Makefile"
+      - "build_moltenvk_ios.sh"
       - ".github/workflows/popinvr-ios.yml"
 
 jobs:
   ios-runtime:
-    name: Compile Klepton runtime for iPhoneOS
+    name: Compile Klepton runtime for iPhoneOS with Vulkan headers
     runs-on: macos-15
     steps:
       - uses: actions/checkout@v4
@@ -25,11 +26,13 @@ jobs:
         run: |
           xcodebuild -version
           xcrun --sdk iphoneos --show-sdk-version
+      - name: Build and stage MoltenVK
+        run: bash build_moltenvk_ios.sh
       - name: Compile and link iOS runtime
         run: make ios-device
 
   ios-app:
-    name: Build PopinVR iOS app
+    name: Build PopinVR app, icon and embedded MoltenVK
     runs-on: macos-15
     steps:
       - uses: actions/checkout@v4
