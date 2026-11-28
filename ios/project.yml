@@ -16,6 +16,10 @@ targets:
       - path: App
         excludes:
           - Info.plist
+          - ThirdPartyLicenses
+      - path: App/ThirdPartyLicenses
+        type: folder
+        buildPhase: resources
       - path: Models
         type: folder
         buildPhase: resources
