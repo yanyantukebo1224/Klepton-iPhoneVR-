@@ -36,6 +36,7 @@ jobs:
           path: |
             vendor-moltenvk/out/include
             ios/Vendor/MoltenVK.framework
+            ios/App/ThirdPartyLicenses
           if-no-files-found: error
           retention-days: 2
 
