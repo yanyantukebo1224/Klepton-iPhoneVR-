@@ -5,10 +5,16 @@ import Foundation
 import MediaPipeTasksVision
 import UIKit
 
-private struct PopinVRPoseSample {
-    let timestamp: TimeInterval
-    let cameraTransform: simd_float4x4
-    let trackingState: String
+public struct PopinVRHeadPose {
+    public let timestamp: TimeInterval
+    public let cameraTransform: simd_float4x4
+    public let trackingState: String
+
+    public init(timestamp: TimeInterval, cameraTransform: simd_float4x4, trackingState: String) {
+        self.timestamp = timestamp
+        self.cameraTransform = cameraTransform
+        self.trackingState = trackingState
+    }
 }
 
 /// One synchronized sample from ARKit and MediaPipe.
@@ -71,6 +77,9 @@ private final class PopinVRBGRAConverter {
 /// MediaPipe z is wrist-relative; worldLandmarks are hand-local meters, not camera distance.
 /// Frames are submitted asynchronously and dropped while inference is busy to bound latency.
 public final class PopinVRTracking: NSObject, ARSessionDelegate, HandLandmarkerLiveStreamDelegate {
+    /// Called for every ARKit camera frame, independently of slower hand inference.
+    public var onPose: ((PopinVRHeadPose) -> Void)?
+    /// Called when the matching asynchronous MediaPipe hand result arrives.
     public var onFrame: ((PopinVRTrackingFrame) -> Void)?
     public var onError: ((Error) -> Void)?
 
@@ -82,7 +91,7 @@ public final class PopinVRTracking: NSObject, ARSessionDelegate, HandLandmarkerL
     private let converter = PopinVRBGRAConverter()
     private let stateLock = NSLock()
     private var landmarker: HandLandmarker?
-    private var poseByTimestamp: [Int: PopinVRPoseSample] = [:]
+    private var poseByTimestamp: [Int: PopinVRHeadPose] = [:]
     private var inferenceInFlight = false
     private var lastSubmittedTimestamp = 0
 
@@ -147,10 +156,12 @@ public final class PopinVRTracking: NSObject, ARSessionDelegate, HandLandmarkerL
     public func session(_ session: ARSession, didUpdate frame: ARFrame) {
         let timestamp = max(Int(frame.timestamp * 1_000), lastSubmittedTimestamp + 1)
         lastSubmittedTimestamp = timestamp
+        let pose = PopinVRHeadPose(timestamp: TimeInterval(timestamp) / 1_000, cameraTransform: frame.camera.transform, trackingState: Self.describe(frame.camera.trackingState))
+        DispatchQueue.main.async { [weak self] in self?.onPose?(pose) }
         stateLock.lock()
         guard !inferenceInFlight else { stateLock.unlock(); return }
         inferenceInFlight = true
-        poseByTimestamp[timestamp] = PopinVRPoseSample(timestamp: TimeInterval(timestamp) / 1_000, cameraTransform: frame.camera.transform, trackingState: Self.describe(frame.camera.trackingState))
+        poseByTimestamp[timestamp] = pose
         if poseByTimestamp.count > 8, let oldest = poseByTimestamp.keys.min() { poseByTimestamp.removeValue(forKey: oldest) }
         stateLock.unlock()
 
