@@ -108,7 +108,10 @@ public final class PopinVRTracking: NSObject, ARSessionDelegate, HandLandmarkerL
         options.handLandmarkerLiveStreamDelegate = self
         options.baseOptions.delegate = .GPU
         do {
-            landmarker = try HandLandmarker(options: options)
+            let created = try HandLandmarker(options: options)
+            stateLock.lock()
+            landmarker = created
+            stateLock.unlock()
         } catch {
             let cpuOptions = HandLandmarkerOptions()
             cpuOptions.baseOptions.modelAssetPath = modelPath
@@ -119,7 +122,10 @@ public final class PopinVRTracking: NSObject, ARSessionDelegate, HandLandmarkerL
             cpuOptions.minTrackingConfidence = 0.5
             cpuOptions.handLandmarkerLiveStreamDelegate = self
             cpuOptions.baseOptions.delegate = .CPU
-            landmarker = try HandLandmarker(options: cpuOptions)
+            let created = try HandLandmarker(options: cpuOptions)
+            stateLock.lock()
+            landmarker = created
+            stateLock.unlock()
         }
 
         let configuration = ARWorldTrackingConfiguration()
@@ -134,8 +140,8 @@ public final class PopinVRTracking: NSObject, ARSessionDelegate, HandLandmarkerL
         stateLock.lock()
         inferenceInFlight = false
         poseByTimestamp.removeAll(keepingCapacity: true)
-        stateLock.unlock()
         landmarker = nil
+        stateLock.unlock()
     }
 
     public func session(_ session: ARSession, didUpdate frame: ARFrame) {
@@ -150,14 +156,18 @@ public final class PopinVRTracking: NSObject, ARSessionDelegate, HandLandmarkerL
 
         let cameraBuffer = frame.capturedImage
         inferenceQueue.async { [weak self] in
-            guard let self, let landmarker = self.landmarker else {
-                self?.finishInference(timestamp: timestamp)
+            guard let self else { return }
+            self.stateLock.lock()
+            let activeLandmarker = self.landmarker
+            self.stateLock.unlock()
+            guard let activeLandmarker else {
+                self.finishInference(timestamp: timestamp)
                 return
             }
             do {
                 let bgraBuffer = try self.converter.convert(cameraBuffer)
                 let image = try MPImage(pixelBuffer: bgraBuffer, orientation: self.imageOrientation)
-                try landmarker.detectAsync(image: image, timestampInMilliseconds: timestamp)
+                try activeLandmarker.detectAsync(image: image, timestampInMilliseconds: timestamp)
             } catch {
                 self.finishInference(timestamp: timestamp)
                 DispatchQueue.main.async { [weak self] in self?.onError?(error) }
