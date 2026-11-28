@@ -14,7 +14,7 @@ public enum PopinVRHandJoint: Int, CaseIterable, Sendable {
 
 /// Per-joint values suitable for a compact C ABI.
 ///
-/// x/y are normalized image coordinates [0, 1].
+/// x/y are normalized image coordinates [0, 1], with origin at the image top-left.
 /// z is MediaPipe's wrist-relative depth (not meters and not camera-space Z).
 /// worldPosition is MediaPipe's hand-local 3D estimate in meters, when present.
 public struct PopinVRHandJointSample: Sendable {
