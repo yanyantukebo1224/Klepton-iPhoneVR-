@@ -53,6 +53,8 @@ From the repository root:
 
 ```sh
 make ios-device
+make build/klepton-ld
+KLEPTON_TARGET=<target-name> make ios-guest
 ```
 
 This compiles and links the shared Klepton shipping runtime against the
@@ -89,20 +91,23 @@ That frontend cannot simply be compiled for iOS. PopinVR will use a dedicated
 MetalKit iOS frontend while reusing the platform-neutral runtime and XR
 compatibility layers.
 
-iOS also has a stricter executable-code and signing model than macOS. A
-successful compile is not enough: the next runtime milestone must verify that
-the app can load its packaged guest images under iOS signing and memory
-protections. We will not assume the macOS JIT or dynamic-loading path works
-unchanged.
+The important part: Klepton already has a device-safe translated-library path.
+`klepton-ld` can emit iOS-stamped Mach-O dylibs from Android ARM64 ELF libraries;
+`kl_load_dylib` loads those through dyld, and the original ELF is retained in a
+`__TEXT,__klelf` section. The iOS app must embed each translated library as a
+framework and let Xcode code-sign it. The iOS runtime must prefer this packaged
+framework path and must not rely on anonymous executable mappings or a JIT.
 
 ## Next milestones
 
 1. Verify the iOS runtime compile/link gate in CI and fix platform-specific
    compile failures.
-2. Add a native iOS app target with a MetalKit SBS test scene and ARKit pose.
-3. Add lens distortion/IPD calibration and a passthrough MR mode.
-4. Connect the fixed-order hand/head tracking ABI to the OpenXR input layer.
-5. Prove one small ARM64 Android guest can boot inside the iOS app before
+2. Generate iOS-stamped guest frameworks with `make ios-guest`, then embed and
+   code-sign them in the app target.
+3. Add a native iOS app target with a MetalKit SBS test scene and ARKit pose.
+4. Add lens distortion/IPD calibration and a passthrough MR mode.
+5. Connect the fixed-order hand/head tracking ABI to the OpenXR input layer.
+6. Prove one small ARM64 Android guest can boot inside the iOS app before
    attempting large Quest titles.
-6. Validate frame rate, motion-to-photon latency, thermals, memory use, and
+7. Validate frame rate, motion-to-photon latency, thermals, memory use, and
    hand-tracking stability on the iPhone 16e.
