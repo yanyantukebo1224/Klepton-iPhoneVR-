@@ -16,9 +16,9 @@ targets:
       - path: App
         excludes:
           - Info.plist
-    resources:
       - path: Models
         type: folder
+        buildPhase: resources
     dependencies:
       - package: PopinVRTracking
         product: PopinVRTracking
