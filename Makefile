@@ -878,6 +878,47 @@ XROS_LIBS  := $(foreach p,$(XROS_PLATFORMS),build/$(p)/libklepton.a)
 # kl_vulkan.c is VK_NO_PROTOTYPES and dlopens it — so this is headers only.
 XROS_CFLAGS := -g -O1 -Wall -Wextra -Wno-unused-parameter -arch arm64 $(MVK_INC) $(RUNTIME_INC)
 
+# iOS device build gate. This deliberately compiles the SAME shipping runtime
+# source list used by visionOS, but against the iPhoneOS SDK. It is a compile
+# and link gate only; runtime execution policy, app embedding/signing, and the
+# MetalKit frontend are validated in the iOS app target separately.
+IOS_SDK := $(shell xcrun --sdk iphoneos --show-sdk-path)
+IOS_CFLAGS := -g -O1 -Wall -Wextra -Wno-unused-parameter -arch arm64 $(MVK_INC) $(RUNTIME_INC)
+
+.PHONY: ios ios-device
+ios: ios-device
+
+build/ios/libklepton.a: $(RUNTIME_SHIP) $(RUNTIME_ALL_HDRS)
+	@mkdir -p build/ios
+	@rm -f $@
+	@set -eu; \
+	for s in $(RUNTIME_SHIP); do \
+	  name="$${s##*/}"; \
+	  o="build/ios/$${name%.*}.o"; \
+	  echo "  CC  $$s -> $$o"; \
+	  $(CC) $(IOS_CFLAGS) -target arm64-apple-ios17.0 -isysroot $(IOS_SDK) \
+	    -c "$$s" -o "$$o"; \
+	done
+	@ar rcs $@ build/ios/*.o
+build/ios/libklepton.dylib: build/ios/libklepton.a
+	@$(CC) -target arm64-apple-ios17.0 -isysroot $(IOS_SDK) -arch arm64 \
+	   -dynamiclib -o $@ -Wl,-all_load $< -lz -framework AudioToolbox \
+	   -framework VideoToolbox -framework CoreMedia -framework CoreVideo \
+	   -framework IOSurface -framework CoreFoundation -framework AVFoundation \
+	   -framework Foundation -framework Metal -framework QuartzCore \
+	   -install_name @rpath/libklepton.dylib
+
+ios-device: build/ios/libklepton.dylib
+	@printf '  ios        '; xcrun vtool -show-build $< | grep -E 'platform' | tr -d '\n'
+	@printf '  %s\n' "$$(ls -l $< | awk '{print $$5" bytes"}')"
+
+
+# Translate selected Android guest libraries into iOS-stamped frameworks.
+# Xcode embeds and code-signs these; the runtime loads them through dyld/AMFI.
+.PHONY: ios-guest
+ios-guest: build/klepton-ld
+	KLEPTON_TARGET="$(KLEPTON_TARGET)" ./ios/mkguest.sh
+
 .PHONY: xros xros-device xros-sim swiftcheck
 xros: $(XROS_GATES) build/Klepton.xcframework swiftcheck
 	@if [ "$(words $(XROS_PLATFORMS))" = 2 ]; then \
@@ -955,11 +996,11 @@ build/xrsim/libklepton.dylib: build/xrsim/libklepton.a
 	   -install_name @rpath/libklepton.dylib
 
 xros-device: build/xros/libklepton.dylib
-	@printf '  xros       '; xcrun vtool -show-build $< | grep -E 'platform' | tr -d '\n'
+	@printf '  ios        '; xcrun vtool -show-build $< | grep -E 'platform' | tr -d '\n'
 	@printf '  %s\n' "$$(ls -l $< | awk '{print $$5" bytes"}')"
 
 xros-sim: build/xrsim/libklepton.dylib
-	@printf '  xrsim      '; xcrun vtool -show-build $< | grep -E 'platform' | tr -d '\n'
+	@printf '  ios        '; xcrun vtool -show-build $< | grep -E 'platform' | tr -d '\n'
 	@printf '  %s\n' "$$(ls -l $< | awk '{print $$5" bytes"}')"
 
 # The two archives as one XCFramework, so the app target links the right slice

@@ -1,0 +1,8 @@
+# Downloaded model bundle (fetch with Scripts/download_hand_model.sh)
+/Models/hand_landmarker.task
+/Models/hand_landmarker.task.download
+
+/Frameworks/
+
+/PopinVR.xcodeproj/
+/build/
