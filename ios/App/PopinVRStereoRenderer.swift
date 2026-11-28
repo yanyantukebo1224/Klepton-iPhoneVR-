@@ -18,6 +18,7 @@ final class PopinVRStereoRenderer: NSObject, MTKViewDelegate {
     private let device: MTLDevice
     private let commandQueue: MTLCommandQueue
     private let pipeline: MTLRenderPipelineState
+    private let depthState: MTLDepthStencilState
     private let vertexBuffer: MTLBuffer
     private let indexBuffer: MTLBuffer
     private let indexCount: Int
@@ -90,6 +91,14 @@ final class PopinVRStereoRenderer: NSObject, MTKViewDelegate {
             return nil
         }
 
+        let depthDescriptor = MTLDepthStencilDescriptor()
+        depthDescriptor.depthCompareFunction = .less
+        depthDescriptor.isDepthWriteEnabled = true
+        guard let depthState = device.makeDepthStencilState(descriptor: depthDescriptor) else {
+            return nil
+        }
+        self.depthState = depthState
+
         super.init()
         view.delegate = self
     }
@@ -124,6 +133,7 @@ final class PopinVRStereoRenderer: NSObject, MTKViewDelegate {
         model.columns.3.z = -2.0
 
         encoder.setRenderPipelineState(pipeline)
+        encoder.setDepthStencilState(depthState)
         encoder.setVertexBuffer(vertexBuffer, offset: 0, index: 0)
 
         for eye in 0..<2 {
