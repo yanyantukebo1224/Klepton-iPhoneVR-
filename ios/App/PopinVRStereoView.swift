@@ -13,6 +13,8 @@ struct PopinVRStereoView: UIViewRepresentable {
         let device = MTLCreateSystemDefaultDevice()
         let view = MTKView(frame: .zero, device: device)
         view.colorPixelFormat = .bgra8Unorm
+        view.depthStencilPixelFormat = .depth32Float
+        view.clearDepth = 1.0
         view.clearColor = MTLClearColor(red: 0.015, green: 0.02, blue: 0.035, alpha: 1)
         view.framebufferOnly = true
         view.preferredFramesPerSecond = 60
