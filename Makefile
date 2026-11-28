@@ -893,14 +893,13 @@ build/ios/libklepton.a: $(RUNTIME_SHIP) $(RUNTIME_ALL_HDRS)
 	@rm -f $@
 	@set -eu; \
 	for s in $(RUNTIME_SHIP); do \
-	  o="build/ios/${s%.*}.o"; \
-	  mkdir -p "$(dirname "$o")"; \
-	  echo "  CC  $s"; \
+	  name="$${s##*/}"; \
+	  o="build/ios/$${name%.*}.o"; \
+	  echo "  CC  $$s -> $$o"; \
 	  $(CC) $(IOS_CFLAGS) -target arm64-apple-ios17.0 -isysroot $(IOS_SDK) \
-	    -c "$s" -o "$o"; \
+	    -c "$$s" -o "$$o"; \
 	done
-	@find build/ios/runtime -name '*.o' -print0 | xargs -0 ar rcs $@
-
+	@ar rcs $@ build/ios/*.o
 build/ios/libklepton.dylib: build/ios/libklepton.a
 	@$(CC) -target arm64-apple-ios17.0 -isysroot $(IOS_SDK) -arch arm64 \
 	   -dynamiclib -o $@ -Wl,-all_load $< -lz -framework AudioToolbox \
