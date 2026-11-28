@@ -107,6 +107,10 @@ public final class PopinVRTracking: NSObject, ARSessionDelegate, HandLandmarkerL
         guard ARWorldTrackingConfiguration.isSupported else { throw PopinVRTrackingError.worldTrackingUnavailable }
         guard FileManager.default.fileExists(atPath: modelPath) else { throw PopinVRTrackingError.modelFileNotFound(modelPath) }
 
+        // Use the CPU delegate for the first device milestone. Some iOS/Metal
+        // combinations can terminate the process during GPU delegate startup
+        // instead of throwing a recoverable Swift error. GPU inference can be
+        // enabled again after device-side stability testing.
         let options = HandLandmarkerOptions()
         options.baseOptions.modelAssetPath = modelPath
         options.runningMode = .liveStream
@@ -115,27 +119,11 @@ public final class PopinVRTracking: NSObject, ARSessionDelegate, HandLandmarkerL
         options.minHandPresenceConfidence = 0.5
         options.minTrackingConfidence = 0.5
         options.handLandmarkerLiveStreamDelegate = self
-        options.baseOptions.delegate = .GPU
-        do {
-            let created = try HandLandmarker(options: options)
-            stateLock.lock()
-            landmarker = created
-            stateLock.unlock()
-        } catch {
-            let cpuOptions = HandLandmarkerOptions()
-            cpuOptions.baseOptions.modelAssetPath = modelPath
-            cpuOptions.runningMode = .liveStream
-            cpuOptions.numHands = 2
-            cpuOptions.minHandDetectionConfidence = 0.5
-            cpuOptions.minHandPresenceConfidence = 0.5
-            cpuOptions.minTrackingConfidence = 0.5
-            cpuOptions.handLandmarkerLiveStreamDelegate = self
-            cpuOptions.baseOptions.delegate = .CPU
-            let created = try HandLandmarker(options: cpuOptions)
-            stateLock.lock()
-            landmarker = created
-            stateLock.unlock()
-        }
+        options.baseOptions.delegate = .CPU
+        let created = try HandLandmarker(options: options)
+        stateLock.lock()
+        landmarker = created
+        stateLock.unlock()
 
         let configuration = ARWorldTrackingConfiguration()
         configuration.worldAlignment = .gravity
