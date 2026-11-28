@@ -28,18 +28,6 @@ jobs:
       - name: Compile and link iOS runtime
         run: make ios-device
 
-  ios-tracking:
-    name: Build MediaPipe tracking package
-    runs-on: macos-15
-    steps:
-      - uses: actions/checkout@v4
-      - name: Resolve MediaPipe Swift package
-        working-directory: ios
-        run: swift package resolve
-      - name: Build for generic iPhone device
-        working-directory: ios
-        run: xcodebuild -scheme PopinVRTracking -destination 'generic/platform=iOS' CODE_SIGNING_ALLOWED=NO build
-
   ios-app:
     name: Build PopinVR iOS app
     runs-on: macos-15
@@ -47,9 +35,6 @@ jobs:
       - uses: actions/checkout@v4
       - name: Install XcodeGen
         run: brew install xcodegen
-      - name: Download verified MediaPipe model
-        working-directory: ios
-        run: ./Scripts/download_hand_model.sh
       - name: Generate Xcode project
         working-directory: ios
         run: xcodegen generate --spec project.yml
