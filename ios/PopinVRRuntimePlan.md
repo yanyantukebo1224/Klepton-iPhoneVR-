@@ -10,7 +10,10 @@ The Klepton core is largely platform-neutral C/Objective-C and already has:
 - GLES routing through ANGLE and Vulkan routing through MoltenVK.
 
 The iOS port should reuse those layers rather than reimplement Android ABI
-compatibility in Swift.
+compatibility in Swift. The guest path is not a JIT: `klepton-ld` translates
+Android ARM64 ELF libraries into iOS-stamped Mach-O dylibs, embeds the original
+ELF in `__TEXT,__klelf`, and the runtime's `kl_load_dylib` asks dyld to map the
+signed image. This is the path to use for iPhone.
 
 ## What is not reusable as-is
 
@@ -30,9 +33,11 @@ camera, pose, hand, controller, audio, and presentation providers.
 the app project: it identifies source-level platform incompatibilities in the
 runtime without mixing them up with SwiftUI or renderer errors.
 
-A green build does not prove runtime loading. The image loader maps guest ELF
-segments and performs relocations; iOS code-signing and executable-memory
-policy must be tested on a physical device before claiming local APK execution.
+A green build does not prove runtime loading. The app must embed every
+translated guest framework and Xcode must code-sign it. The runtime then loads
+the framework through dyld/AMFI and applies the Android ELF relocations to the
+read-only embedded `__klelf` image. The anonymous-mmap ELF loader is a host
+fallback, not the iOS shipping path.
 
 ## Execution strategy
 
