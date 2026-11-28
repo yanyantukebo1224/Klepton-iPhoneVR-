@@ -1,60 +1,67 @@
 # PopinVR iOS platform layer
 
-This directory is the first iOS-specific platform module for the Klepton-derived
-runtime. It is intentionally separate from `visionos/`: iOS must not compile
-against Compositor Services or visionOS-only ARKit providers.
+This directory is the iOS-specific platform module for the Klepton-derived runtime.
+It stays separate from `visionos/`: iOS must not compile against Compositor
+Services or visionOS-only ARKit providers.
 
-## Current implementation
+## Hand tracking and depth decision
 
-`Sources/PopinVRTracking/PopinVRTracking.swift` provides a small Swift Package
-that:
+Use **MediaPipe Tasks Vision Hand Landmarker** as the primary hand landmark
+provider rather than trying to infer 3D from Vision's 2D hand points.
 
-- obtains the iPhone camera pose from `ARSession` + `ARWorldTrackingConfiguration`;
-- runs Vision's `VNDetectHumanHandPoseRequest` on each camera frame;
-- publishes the timestamp, ARKit camera transform, tracking state, and detected
-  2D hand landmarks to the app on the main queue.
+MediaPipe provides 21 ordered landmarks per hand:
+- normalized image `x/y` in [0, 1];
+- model-estimated `z` relative to the wrist (not meters);
+- `worldLandmarks` in meters in a hand-local coordinate frame;
+- handedness and confidence.
 
-The hand landmarks are normalized image coordinates, not metric 3D joint poses.
-This is a deliberate first milestone: Vision hand pose is not equivalent to
-visionOS `HandTrackingProvider`, and the runtime must not silently treat 2D
-points as a Quest hand skeleton.
+This gives us 3D finger articulation without a separate large monocular-depth
+model. Important distinction: hand-local world landmarks do **not** reveal the
+hand's absolute distance from the iPhone camera.
 
-The host app must add `NSCameraUsageDescription` to its Info.plist before
-starting the tracker. The image orientation is configurable because the
-orientation of the camera buffer depends on how the phone is mounted.
+For absolute camera-relative depth:
+1. Prefer ARKit scene depth when the device supports LiDAR.
+2. Otherwise keep wrist distance unavailable initially; add a separately
+   calibrated monocular scale estimator only if the experience needs it.
+3. Never reinterpret MediaPipe's wrist-relative `z` as meters.
+
+The initial iPhone 16e target does not have a LiDAR scanner. Its first
+non-LiDAR path should use MediaPipe's 21-point local skeleton for hand pose and
+report absolute depth as unavailable rather than inventing a distance.
+
+## Stable data contract
+
+`Sources/PopinVRTracking/PopinVRHandSkeleton.swift` defines a fixed 21-joint
+order matching MediaPipe Hands. Each joint carries scalar normalized `x/y`,
+relative `z`, confidence, and optional hand-local metric position. This order
+is intended to be shared with the C/C++ XR adapter and later mapped to the
+Quest/OpenXR hand-joint profile.
+
+## Current tracking foundation
+
+`Sources/PopinVRTracking/PopinVRTracking.swift` currently obtains the iPhone
+camera pose from ARKit and uses Vision hand pose as a temporary detector.
+The next integration step is replacing that detector with MediaPipe Tasks
+Vision and populating `PopinVRHandSkeleton`. Do not treat the temporary Vision
+points as a 3D skeleton.
 
 ## Platform boundary
-
-Keep the guest runtime in C. Keep iOS device services in Swift and expose a
-small C-compatible bridge for the runtime:
 
 | Guest-facing capability | iOS provider |
 |---|---|
 | HMD pose / tracking origin | ARKit world tracking + device motion |
-| Hand observations | Vision hand landmarks; later depth/pose reconstruction |
+| Hand articulation | MediaPipe Hand Landmarker (21 joints) |
+| Absolute hand depth | ARKit scene depth on LiDAR devices; optional calibrated estimator elsewhere |
 | Controller input | GameController framework and/or external controller bridge |
 | Stereo presentation | Metal-backed SBS renderer |
 | Camera passthrough | ARKit captured camera frames rendered by Metal |
 | Audio | AVAudioEngine / AudioToolbox |
 
-The iOS target must not import `CompositorServices`, use `ImmersiveSpace`, or
-depend on visionOS-only `HandTrackingProvider` / `HandAnchor` types.
-
 ## Next milestones
 
-1. Add an iOS app target that embeds this package and requests camera access.
-2. Render a calibration scene in side-by-side stereo with lens-distortion
-   controls; keep this independent from Android guest startup.
-3. Add a Metal camera-background path for optional MR passthrough.
-4. Define a C ABI for timestamped head pose and hand samples, then connect it
-   to the existing `runtime/xr` pose/input seams.
-5. Implement the Quest/OpenXR hand-joint profile and controller profile only
-   after the iOS tracking data has a stable coordinate-space contract.
-6. Add iOS device build gates and tests; keep the existing macOS/visionOS
-   build paths unchanged.
-
-## Build note
-
-This package is an isolated module, not yet wired into the generated Xcode
-project. Build it on macOS with Xcode using the Swift Package manifest. The
-repository's current top-level build and `visionos/run.sh` remain unchanged.
+1. Integrate MediaPipe Tasks Vision and package its model asset.
+2. Add a C ABI for fixed-order timestamped head pose and hand samples.
+3. Build the Metal SBS renderer and lens calibration UI.
+4. Add camera-background composition for optional MR passthrough.
+5. Connect the iOS tracking adapter to the existing XR runtime seams.
+6. Validate tracking rate, end-to-end latency, thermals, and hand loss on-device.
