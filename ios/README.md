@@ -57,7 +57,7 @@ brew install xcodegen
 bash build_app.sh
 ```
 
-This produces an unsigned IPA at `ios/build/PopinVR-unsigned.ipa`; it must be signed with your own iOS signing workflow before installation. The preview currently displays a side-by-side stereo test cube and reports ARKit/MediaPipe tracking status.
+This produces an unsigned IPA at `ios/build/PopinVR-unsigned.ipa`; it must be signed with your own iOS signing workflow before installation. The preview currently displays a side-by-side stereo test cube and reports ARKit/MediaPipe tracking status. It is an engineering preview, not yet headset-calibrated: lens distortion, MR passthrough, rendered hand meshes, and guest-runtime launch are still pending.
 
 From the repository root, the guest runtime gates are:
 
