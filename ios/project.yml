@@ -40,3 +40,4 @@ targets:
         SUPPORTS_MACCATALYST: NO
         ENABLE_PREVIEWS: YES
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        OTHER_LDFLAGS: "$(inherited) $(SRCROOT)/../build/ios/libklepton.a -lz -framework AudioToolbox -framework CoreAudio -framework VideoToolbox -framework CoreMedia -framework CoreVideo -framework IOSurface -framework CoreFoundation -framework AVFoundation -framework Foundation -framework Metal -framework QuartzCore"
