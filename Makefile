@@ -910,6 +910,12 @@ ios-device: build/ios/libklepton.dylib
 	@printf '  %s\n' "$$(ls -l $< | awk '{print $$5" bytes"}')"
 
 
+# Translate selected Android guest libraries into iOS-stamped frameworks.
+# Xcode embeds and code-signs these; the runtime loads them through dyld/AMFI.
+.PHONY: ios-guest
+ios-guest: build/klepton-ld
+	KLEPTON_TARGET="$(KLEPTON_TARGET)" ./ios/mkguest.sh
+
 .PHONY: xros xros-device xros-sim swiftcheck
 xros: $(XROS_GATES) build/Klepton.xcframework swiftcheck
 	@if [ "$(words $(XROS_PLATFORMS))" = 2 ]; then \
