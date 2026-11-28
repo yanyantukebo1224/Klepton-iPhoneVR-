@@ -1,7 +1,6 @@
 import SwiftUI
 import PopinVRTracking
 
-@MainActor
 final class PopinVRSessionModel: ObservableObject {
     @Published var headPose: PopinVRHeadPose?
     @Published var trackingState = "waiting"
