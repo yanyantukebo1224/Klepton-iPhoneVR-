@@ -146,6 +146,7 @@ public final class PopinVRTracking: NSObject, ARSessionDelegate, HandLandmarkerL
 
     public func stop() {
         session.pause()
+        session.delegate = nil
         stateLock.lock()
         inferenceInFlight = false
         poseByTimestamp.removeAll(keepingCapacity: true)
@@ -248,8 +249,19 @@ private extension Collection {
     subscript(safe index: Index) -> Element? { indices.contains(index) ? self[index] : nil }
 }
 
-public enum PopinVRTrackingError: Error {
+public enum PopinVRTrackingError: LocalizedError {
     case worldTrackingUnavailable
     case modelFileNotFound(String)
     case pixelBufferConversionFailed(CVReturn)
+
+    public var errorDescription: String? {
+        switch self {
+        case .worldTrackingUnavailable:
+            return "ARKit world tracking is not supported on this device."
+        case .modelFileNotFound(let path):
+            return "MediaPipe hand model was not found at: \(path)"
+        case .pixelBufferConversionFailed(let status):
+            return "Camera frame conversion to BGRA failed (CVReturn \(status))."
+        }
+    }
 }
