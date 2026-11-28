@@ -5,7 +5,6 @@ ROOT="$(cd "$HERE/.." && pwd)"
 cd "$HERE"
 
 # Stage a real iOS MoltenVK framework and Vulkan headers before generating Xcode.
-bash "$ROOT/build_moltenvk_ios.sh"
 make -C "$ROOT" ios-device
 python3 ./Scripts/generate_app_icon.py
 
