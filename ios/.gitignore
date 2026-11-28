@@ -3,3 +3,6 @@
 /Models/hand_landmarker.task.download
 
 /Frameworks/
+
+/PopinVR.xcodeproj/
+/build/
